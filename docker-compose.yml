@@ -2,6 +2,21 @@ version: "3.8"
 services:
   app:
     build: .
+    restart: always
+    volumes:
+      - .:/src/py
     command: uvicorn src.main:app --host 0.0.0.0 --reload
     ports:
       - "8000:8000"
+  postgres:
+    image: postgres:13.3
+    environment:
+      POSTGRES_DB: "bd"
+    volumes:
+      - .:/docker-entrypoint-initdb.d
+    ports:
+      - "54321:5432"
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
