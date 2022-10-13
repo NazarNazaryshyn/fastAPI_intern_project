@@ -4,7 +4,7 @@ services:
     build: .
     restart: always
     volumes:
-      - .:/src/py
+      - .:/src
     command: uvicorn src.main:app --host 0.0.0.0 --reload
     ports:
       - "8000:8000"
@@ -15,7 +15,7 @@ services:
     volumes:
       - .:/docker-entrypoint-initdb.d
     ports:
-      - "54321:5432"
+      - "5432:5432"
   redis:
     image: "redis:alpine"
     ports:

@@ -20,9 +20,6 @@ app.add_middleware(
 )
 
 
-# fafafa
-
-
 @app.on_event("startup")
 async def startup():
     await postgres.connect()
