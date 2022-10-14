@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from config import engine, Base, DATABASE_URL
+from .database import engine
+from .models import Base
+from .config import settings
+
 import databases
 import aioredis
 
@@ -22,13 +25,13 @@ app.add_middleware(
 )
 
 
-db = databases.Database(DATABASE_URL)
+db = databases.Database(settings.DATABASE_URL)
 
 
 @app.on_event('startup')
 async def startup():
     await db.connect()
-    app.state.redis = await aioredis.from_url('redis://reids:6379')
+    app.state.redis = await aioredis.from_url('redis://redis:6379')
 
 
 @app.on_event('shutdown')
@@ -39,5 +42,5 @@ async def shutdown():
 
 @app.get("/")
 async def root():
-    return {"status": "Working!"}
+    return {"status": "working!"}
 
