@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import engine
 from .models import Base
 from .config import settings
+from src.router import router
 
 import databases
 import aioredis
@@ -15,6 +16,7 @@ app = FastAPI()
 origins = [
     "http://localhost:8000"
 ]
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,4 +45,7 @@ async def shutdown():
 @app.get("/")
 async def root():
     return {"status": "working!"}
+
+
+app.include_router(router, prefix='/user', tags=["user"])
 

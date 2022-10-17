@@ -34,8 +34,8 @@ services:
     container_name: redis-ui
     environment:
       - REDIS-HOSTS=local:redis:6379
-      - HTTP_USER=admin
-      - HTTP_PASSWORD=admin
+      - HTTP_USER=${HTTP_USER}
+      - HTTP_PASSWORD=${HTTP_PASSWORD}
     ports:
       - 8081:8081
     depends_on:
