@@ -1,5 +1,5 @@
-**/__pycache__/
+.idea
+idea
+venv
 
-**.idea/**
-
-/venv
+__pycache__

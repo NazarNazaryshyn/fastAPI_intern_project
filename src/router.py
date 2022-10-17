@@ -1,7 +1,7 @@
 from typing import List
-
+import datetime
 from fastapi import APIRouter, HTTPException, status
-from .database import SessionLocal
+from src.database import SessionLocal
 from src.schemas import *
 from src.models import *
 
@@ -11,7 +11,7 @@ db = SessionLocal()
 
 @router.get('/', response_model=List[UserGetSchema], status_code=status.HTTP_200_OK)
 async def get_all_users():
-    user = db.query(User).all()
+    user = db.query(User).offset(0).limit(10).all()
 
     return user
 
@@ -29,15 +29,20 @@ async def get_user(user_id: int):
 @router.put("/{user_id}", response_model=UserUpdateSchema, status_code=status.HTTP_200_OK)
 async def update_user(user_id: int, user: UserUpdateSchema):
     db_user = db.query(User).filter(User.id == user_id).first()
-    db_user.name = user.name
-    db_user.surname = user.surname
-    db_user.age = user.age
-    db_user.email = user.email
-    db_user.password = user.password
+
+    if db_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    db_user.name = db_user.name if user.name is None else user.name
+    db_user.surname = db_user.surname if user.surname is None else user.surname
+    db_user.age = db_user.age if user.age is None else user.age
+    db_user.email = db_user.email if user.email is None else user.email
+    db_user.password = db_user.password if user.password is None else user.password
+    db_user.updated_at = datetime.datetime.now()
 
     db.commit()
 
-    return db_user
+    return {"message": f"user with id {user_id} has been updated"}
 
 
 @router.post('/', response_model=UserCreateSchema, status_code=status.HTTP_201_CREATED)
@@ -58,7 +63,7 @@ async def create_user(user: UserCreateSchema):
     db.add(new_user)
     db.commit()
 
-    return new_user
+    return {"message": "success!! user has been created"}
 
 
 @router.delete("/{user_id}")
@@ -71,4 +76,4 @@ async def delete_user(user_id: int):
     db.delete(user)
     db.commit()
 
-    return user
+    return {"message": f"user with id {user_id} has been deleted"}

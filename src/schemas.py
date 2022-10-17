@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -24,15 +26,14 @@ class UserGetSchema(BaseModel):
 
 
 class UserUpdateSchema(BaseModel):
-    name: str
-    surname: str
-    age: int
-    email: str
-    password: str
+    name: Optional[str]
+    surname: Optional[str]
+    age: Optional[int]
+    email: Optional[str]
+    password: Optional[str]
 
     class Config:
         orm_mode = True
-
 
 
 

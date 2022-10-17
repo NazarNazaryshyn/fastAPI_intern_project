@@ -8,7 +8,7 @@ from src.router import router
 import databases
 import aioredis
 
-Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
