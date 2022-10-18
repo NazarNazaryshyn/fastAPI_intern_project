@@ -44,7 +44,7 @@ async def shutdown():
 
 @app.get("/")
 async def root():
-    return {"status": "working!"}
+    return {"status": "Working"}
 
 
 app.include_router(router, prefix='/user', tags=["user"])
