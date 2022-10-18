@@ -1,12 +1,12 @@
-from typing import Optional
-
+from typing import Optional, List
 from pydantic import BaseModel
+from src.models import User
 
 
 class UserCreateSchema(BaseModel):
-    name: str
-    surname: str
-    age: int
+    name: Optional[str]
+    surname: Optional[str]
+    age: Optional[int]
     email: str
     password: str
 
@@ -36,5 +36,9 @@ class UserUpdateSchema(BaseModel):
         orm_mode = True
 
 
+class UserLoginSchema(BaseModel):
+    email: str
+    password: str
 
-
+    class Config:
+        orm_mode = True
