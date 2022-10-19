@@ -16,6 +16,14 @@ class Settings:
     HTTP_PASSWORD: str = os.getenv("HTTP_PASSWORD")
     HTTP_USER: str = os.getenv("HTTP_USER")
 
+    DOMAIN: str = os.getenv("DOMAIN")
+    API_AUDIENCE: str = os.getenv("API_AUDIENCE")
+    ALGORITHMS: str = os.getenv("ALGORITHMS")
+    ISSUER: str = os.getenv("ISSUER")
+
+    SECRET_KEY: str = os.getenv("SECRET_KEY")
+    ALGORITHM: str = os.getenv("ALGORITHM")
+
 
 settings = Settings()
 

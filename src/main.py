@@ -1,17 +1,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine
-from .models import Base
+from src.user.models import Base
 from .config import settings
-from src.router import router
-
+from src.user.router import router
+from src.auth.router import auth_router
 import databases
 import aioredis
+from fastapi.security import HTTPBearer
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
 
+app = FastAPI()
+token_auth_scheme = HTTPBearer()
 
 origins = [
     "http://localhost:8000"
@@ -44,8 +46,9 @@ async def shutdown():
 
 @app.get("/")
 async def root():
-    return {"status": "working!"}
+    return {"status": "Working"}
 
 
 app.include_router(router, prefix='/user', tags=["user"])
+app.include_router(auth_router, prefix='/auth', tags=["auth"])
 

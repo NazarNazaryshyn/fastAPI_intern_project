@@ -2,8 +2,10 @@ import datetime
 
 from fastapi import HTTPException, status
 from src.database import SessionLocal
-from src.models import User
-from src.schemas import UserCreateSchema, UserUpdateSchema
+from src.user.models import User
+from src.user.schemas import UserCreateSchema, UserUpdateSchema
+
+from src.auth.auth import auth_handler
 
 
 db = SessionLocal()
@@ -38,9 +40,23 @@ class CrudMethods:
             surname=user.surname,
             age=user.age,
             email=user.email,
-            password=user.password
+            password=auth_handler.get_password_hash(user.password)
         )
 
+        db.add(new_user)
+        db.commit()
+
+        return new_user
+
+    @staticmethod
+    def create_user_for_auth(email):
+        new_user = User(
+            name='',
+            surname='',
+            age=0,
+            email=email,
+            password=''
+        )
         db.add(new_user)
         db.commit()
 
@@ -57,7 +73,7 @@ class CrudMethods:
         db_user.surname = db_user.surname if user.surname is None else user.surname
         db_user.age = db_user.age if user.age is None else user.age
         db_user.email = db_user.email if user.email is None else user.email
-        db_user.password = db_user.password if user.password is None else user.password
+        db_user.password = auth_handler.get_password_hash(user.password) if user.password is None else user.password
         db_user.updated_at = datetime.datetime.now()
 
         db.add(db_user)
@@ -76,6 +92,8 @@ class CrudMethods:
         db.commit()
 
         return db_user
+
+
 
 
 user_methods = CrudMethods()
