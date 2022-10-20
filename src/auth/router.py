@@ -24,33 +24,32 @@ def login(email: str, password: str):
     return {"token": token}
 
 
-def decode_token(token):
-    # if len(token) < 165:
-    #     decoded = auth_handler.decode_token(token)
-    #     return decoded
-
-    try:
-        decoded = VerifyToken(token.credentials).verify()
-        return decoded['https://example.com/email']
-    except:
-        decoded = auth_handler.decode_token(token)
-        return decoded
+def decode_token(token = Depends(auth_handler.auth_wrapper)):
+    return token
 
 
-def current_user(token: str = Depends(token_auth_scheme)):
-    decoded_email = decode_token(token)
+def decode_auth_token(token):
+    return (VerifyToken(token.credentials).verify())['https://example.com/email']
 
-    user = db.query(User).filter(User.email == decoded_email).first()
+
+def get_current_user(token: str = Depends(token_auth_scheme)):
+    if len(token.credentials) == 141:
+        valid_token = decode_token(token.credentials)
+        email = auth_handler.decode_token(valid_token)
+    else:
+        email = decode_auth_token(token)
+
+    user = db.query(User).filter(User.email == email).first()
 
     if user is None:
-        new_user = user_methods.create_user_for_auth(decoded_email)
+        new_user = user_methods.create_user_for_auth(email)
         return new_user
 
     return user
 
 
 @auth_router.get('/me', response_model=UserGetSchema)
-async def me(current_user: str = Depends(current_user)):
+async def me(current_user: str = Depends(get_current_user)):
 
     return current_user
 
