@@ -1,6 +1,6 @@
 import jwt
 from src.config import settings
-
+from fastapi import HTTPException, status
 
 def set_up():
     config = {
@@ -27,9 +27,9 @@ class VerifyToken():
                 self.token
             ).key
         except jwt.exceptions.PyJWKClientError as error:
-            return {"status": "error", "msg": error.__str__()}
+            return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error.__str__)
         except jwt.exceptions.DecodeError as error:
-            return {"status": "error", "msg": error.__str__()}
+            return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error.__str__)
 
         try:
             payload = jwt.decode(
@@ -40,6 +40,6 @@ class VerifyToken():
                 issuer=self.config["ISSUER"],
             )
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
         return payload

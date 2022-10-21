@@ -1,39 +1,47 @@
 import datetime
 
 from fastapi import HTTPException, status
-from src.database import SessionLocal
+from sqlalchemy import select, update, delete
+from sqlalchemy.orm import Session
+
+from src.database import async_session
 from src.user.models import User
 from src.user.schemas import UserCreateSchema, UserUpdateSchema
 
 from src.auth.auth import auth_handler
 
 
-db = SessionLocal()
+db = async_session()
 
 
 class CrudMethods:
 
-    @staticmethod
-    def get_all_users(offset: int = 0, limit: int = 100):
-        users = db.query(User).offset(offset).limit(limit).all()
+    def __init__(self, db_session: Session):
+        self.db_session = db_session
 
-        return users
+    async def get_all_users(self):
+        users = await self.db_session.execute(select(User))
 
-    @staticmethod
-    def get_user_by_id(given_id: int):
-        user = db.query(User).filter(User.id == given_id).first()
+        return users.scalars().all()
+
+    async def get_user_by_id(self, user_id: int):
+        user = await self.db_session.execute(select(User).filter(User.id == user_id))
+
+        return user.scalars().first()
+
+    async def get_user_by_email(self, email: str):
+        user = await self.db_session.execute(select(User).filter(User.email == email))
 
         if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user with this email doesn't exist")
 
-        return user
+        return user.scalars().first()
 
-    @staticmethod
-    def create_user(user: UserCreateSchema):
-        db_user = db.query(User).filter(User.email == user.email).first()
+    async def create_user(self, user: UserCreateSchema):
+        db_user = await self.get_user_by_email(user.email)
 
-        if db_user is not None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        if db_user:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="user with this email already exists")
 
         new_user = User(
             name=user.name,
@@ -42,58 +50,53 @@ class CrudMethods:
             email=user.email,
             password=auth_handler.get_password_hash(user.password)
         )
-
-        db.add(new_user)
-        db.commit()
+        self.db_session.add(new_user)
+        await self.db_session.flush()
 
         return new_user
 
-    @staticmethod
-    def create_user_for_auth(email):
+    async def delete_user(self, user_id: int):
+        db_user = await self.get_user_by_id(user_id)
+        if db_user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+        await self.db_session.execute(delete(User).filter(User.id == user_id))
+        await self.db_session.commit()
+
+    async def update_user(self, user_id: int, user: UserUpdateSchema):
+        db_user = await self.get_user_by_id(user_id)
+
+        if db_user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user with this id doesn't exist")
+
+        if user.email is not None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you are not able to change your email")
+
+        query = (
+            update(User)
+            .where(User.id == user_id)
+            .values(
+                name=db_user.name if user.name is None else user.name,
+                surname=db_user.surname if user.surname is None else user.surname,
+                age=db_user.age if user.age is None else user.age,
+                password=db_user.password if user.password is None else auth_handler.get_password_hash(user.password),
+                updated_at=datetime.datetime.now()
+            )
+            .execution_options(synchronize_session="fetch")
+        )
+        await self.db_session.execute(query)
+        await self.db_session.commit()
+
+    async def create_user_auth(self, email: str):
         new_user = User(
-            name='',
-            surname='',
+            name="",
+            surname="",
             age=0,
             email=email,
-            password=''
+            password=""
         )
-        db.add(new_user)
-        db.commit()
+
+        self.db_session.add(new_user)
+        await self.db_session.flush()
 
         return new_user
-
-    @staticmethod
-    def update_user(user_id: int, user: UserUpdateSchema):
-        db_user = db.query(User).filter(User.id == user_id).first()
-
-        if db_user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-
-        db_user.name = db_user.name if user.name is None else user.name
-        db_user.surname = db_user.surname if user.surname is None else user.surname
-        db_user.age = db_user.age if user.age is None else user.age
-        db_user.email = db_user.email if user.email is None else user.email
-        db_user.password = auth_handler.get_password_hash(user.password) if user.password is None else user.password
-        db_user.updated_at = datetime.datetime.now()
-
-        db.add(db_user)
-        db.commit()
-
-        return db_user
-
-    @staticmethod
-    def delete_user(user_id: int):
-        db_user = db.query(User).filter(User.id == user_id).first()
-
-        if db_user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-
-        db.delete(db_user)
-        db.commit()
-
-        return db_user
-
-
-
-
-user_methods = CrudMethods()
