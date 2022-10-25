@@ -41,3 +41,10 @@ class UserLoginSchema(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class UserInfo(BaseModel):
+    info: str
+
+    class Config:
+        orm_mode = True

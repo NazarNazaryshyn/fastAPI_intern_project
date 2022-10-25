@@ -11,13 +11,13 @@ class AuthHandler():
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     secret = settings.SECRET_KEY
 
-    def get_password_hash(self, password):
+    def get_password_hash(self, password: str) -> str:
         return self.pwd_context.hash(password)
 
-    def verify_password(self, password, hashed_password):
+    def verify_password(self, password: str, hashed_password: str) -> bool:
         return self.pwd_context.verify(password, hashed_password)
 
-    def encode_token(self, email):
+    def encode_token(self, email: str) -> str:
         payload = {
             'exp': datetime.utcnow() + timedelta(days=0, minutes=5),
             'iat': datetime.utcnow(),
@@ -29,7 +29,7 @@ class AuthHandler():
             algorithm=settings.ALGORITHM
         )
 
-    def decode_token(self, token):
+    def decode_token(self, token: str) -> str:
         try:
             payload = jwt.decode(token, self.secret, algorithms=[settings.ALGORITHM])
             return payload['sub']
@@ -38,8 +38,8 @@ class AuthHandler():
         except jwt.InvalidTokenError as e:
             raise HTTPException(status_code=401, detail='Invalid token')
 
-    def auth_wrapper(self, auth: HTTPAuthorizationCredentials = Security(security)):
-        return self.decode_token(auth.credentials)
+    def auth_wrapper(self, auth: HTTPAuthorizationCredentials = Security(security)) -> str:
+        return self.decode_token(token=auth.credentials)
 
 
 auth_handler = AuthHandler()

@@ -10,9 +10,6 @@ import aioredis
 from fastapi.security import HTTPBearer
 
 
-# Base.metadata.create_all(bind=engine)
-
-
 app = FastAPI()
 token_auth_scheme = HTTPBearer()
 
@@ -35,8 +32,10 @@ db = databases.Database(settings.DATABASE_URL)
 
 @app.on_event('startup')
 async def startup():
-    await db.connect()
     app.state.redis = await aioredis.from_url('redis://redis:6379')
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
 
 
 @app.on_event('shutdown')
@@ -52,4 +51,3 @@ async def root():
 
 app.include_router(router, prefix='/user', tags=["user"])
 app.include_router(auth_router, prefix='/auth', tags=["auth"])
-

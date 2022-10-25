@@ -21,7 +21,7 @@ class VerifyToken():
         jwks_url = f'https://{self.config["DOMAIN"]}/.well-known/jwks.json'
         self.jwks_client = jwt.PyJWKClient(jwks_url)
 
-    def verify(self):
+    def verify(self) -> str:
         try:
             self.signing_key = self.jwks_client.get_signing_key_from_jwt(
                 self.token

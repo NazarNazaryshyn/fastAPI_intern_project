@@ -10,6 +10,8 @@ from src.user.schemas import UserCreateSchema, UserUpdateSchema
 
 from src.auth.auth import auth_handler
 
+from typing import List
+from src.user.schemas import UserGetSchema
 
 db = async_session()
 
@@ -19,17 +21,16 @@ class CrudMethods:
     def __init__(self, db_session: Session):
         self.db_session = db_session
 
-    async def get_all_users(self):
+    async def get_all_users(self) -> List[User]:
         users = await self.db_session.execute(select(User))
 
         return users.scalars().all()
 
-    async def get_user_by_id(self, user_id: int):
+    async def get_user_by_id(self, user_id: int) -> User:
         user = await self.db_session.execute(select(User).filter(User.id == user_id))
+        return user
 
-        return user.scalars().first()
-
-    async def get_user_by_email(self, email: str):
+    async def get_user_by_email(self, email: str) -> User:
         user = await self.db_session.execute(select(User).filter(User.email == email))
 
         if user is None:
@@ -37,7 +38,8 @@ class CrudMethods:
 
         return user.scalars().first()
 
-    async def create_user(self, user: UserCreateSchema):
+
+    async def create_user(self, user: UserCreateSchema) -> User:
         db_user = await self.get_user_by_email(user.email)
 
         if db_user:
@@ -55,16 +57,16 @@ class CrudMethods:
 
         return new_user
 
-    async def delete_user(self, user_id: int):
-        db_user = await self.get_user_by_id(user_id)
+    async def delete_user(self, user_id: int) -> None:
+        db_user = await self.get_user_by_id(user_id=user_id)
         if db_user is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
         await self.db_session.execute(delete(User).filter(User.id == user_id))
         await self.db_session.commit()
 
-    async def update_user(self, user_id: int, user: UserUpdateSchema):
-        db_user = await self.get_user_by_id(user_id)
+    async def update_user(self, user_id: int, user: UserUpdateSchema) -> None:
+        db_user = await self.get_user_by_id(user_id=user_id)
 
         if db_user is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user with this id doesn't exist")
@@ -87,7 +89,7 @@ class CrudMethods:
         await self.db_session.execute(query)
         await self.db_session.commit()
 
-    async def create_user_auth(self, email: str):
+    async def create_user_auth(self, email: str) -> User:
         new_user = User(
             name="",
             surname="",
