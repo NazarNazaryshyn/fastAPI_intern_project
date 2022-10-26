@@ -24,11 +24,11 @@ class CrudMethods:
     async def get_all_users(self) -> List[User]:
         users = (await self.db_session.execute(select(User))).scalars().all()
 
-        return list(UserGetSchema(**{"id": user.id,
-                                     "name": user.name,
-                                     "surname": user.surname,
-                                     "email": user.email,
-                                     "age": user.age}) for user in users)
+        return list(UserGetSchema(id=user.id,
+                                  name=user.name,
+                                  surname=user.surname,
+                                  email=user.email,
+                                  age=user.age) for user in users)
 
     async def get_user_by_id(self, user_id: int) -> User:
         user = (await self.db_session.execute(select(User).filter(User.id == user_id))).scalars().first()
@@ -36,19 +36,23 @@ class CrudMethods:
         if user is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"there is no user with id {user_id}")
 
-        return UserGetSchema(**{"id": user_id,
-                                "name": user.name,
-                                "surname": user.surname,
-                                "email": user.email,
-                                "age": user.age})
+        return UserGetSchema(id=user.id,
+                             name=user.name,
+                             surname=user.surname,
+                             email=user.email,
+                             age=user.age)
 
     async def get_user_by_email(self, email: str) -> User:
-        user = await self.db_session.execute(select(User).filter(User.email == email))
+        user = (await self.db_session.execute(select(User).filter(User.email == email))).scalars().first()
 
         if user is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user with this email doesn't exist")
 
-        return user.scalars().first()
+        return UserGetSchema(id=user.id,
+                             name=user.name,
+                             surname=user.surname,
+                             email=user.email,
+                             age=user.age)
 
     async def create_user(self, user: UserCreateSchema) -> User:
         db_user = (await self.db_session.execute(select(User).filter(User.email == user.email))).scalars().first()
@@ -66,11 +70,11 @@ class CrudMethods:
         self.db_session.add(new_user)
         await self.db_session.flush()
 
-        return UserGetSchema(**{"id": new_user.id,
-                                "name": new_user.name,
-                                "surname": new_user.surname,
-                                "email": new_user.email,
-                                "age": new_user.age})
+        return UserGetSchema(id=user.id,
+                             name=user.name,
+                             surname=user.surname,
+                             email=user.email,
+                             age=user.age)
 
     async def delete_user(self, user_id: int) -> None:
         db_user = await self.get_user_by_id(user_id=user_id)
@@ -116,8 +120,8 @@ class CrudMethods:
         self.db_session.add(new_user)
         await self.db_session.flush()
 
-        return UserGetSchema(**{"id": new_user.id,
-                                "name": new_user.name,
-                                "surname": new_user.surname,
-                                "email": new_user.email,
-                                "age": new_user.age})
+        return UserGetSchema(id=user.id,
+                             name=user.name,
+                             surname=user.surname,
+                             email=user.email,
+                             age=user.age)
