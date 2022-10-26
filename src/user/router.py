@@ -58,7 +58,7 @@ async def create_user(user: UserCreateSchema) -> User:
 
 
 @router.delete("/{user_id}", response_model=UserInfo)
-async def delete_user(user_id: int, current_user: User = Depends(get_current_user)) -> set[str]:
+async def delete_user(user_id: int, current_user: User = Depends(get_current_user)) -> dict[str]:
     async with async_session() as session:
         async with session.begin():
             user_crud = CrudMethods(db_session=session)
@@ -70,4 +70,4 @@ async def delete_user(user_id: int, current_user: User = Depends(get_current_use
 
             await user_crud.delete_user(user_id=user_id)
 
-            return {"info":f"user with id {user_id} has been successfully deleted"}
+            return {"info": f"user with id {user_id} has been successfully deleted"}

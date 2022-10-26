@@ -24,7 +24,7 @@ async def login(email: str, password: str) -> str:
         raise HTTPException(status_code=401, detail='Invalid username and/or password')
     token = auth_handler.encode_token(email=user.email)
 
-    return {"token":token}
+    return TokenScheme(token=token)
 
 
 @auth_router.get('/me', response_model=UserGetSchema)

@@ -22,13 +22,25 @@ class CrudMethods:
         self.db_session = db_session
 
     async def get_all_users(self) -> List[User]:
-        users = await self.db_session.execute(select(User))
+        users = (await self.db_session.execute(select(User))).scalars().all()
 
-        return users.scalars().all()
+        return list(UserGetSchema(**{"id": user.id,
+                                     "name": user.name,
+                                     "surname": user.surname,
+                                     "email": user.email,
+                                     "age": user.age}) for user in users)
 
     async def get_user_by_id(self, user_id: int) -> User:
-        user = await self.db_session.execute(select(User).filter(User.id == user_id))
-        return user
+        user = (await self.db_session.execute(select(User).filter(User.id == user_id))).scalars().first()
+
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"there is no user with id {user_id}")
+
+        return UserGetSchema(**{"id": user_id,
+                                "name": user.name,
+                                "surname": user.surname,
+                                "email": user.email,
+                                "age": user.age})
 
     async def get_user_by_email(self, email: str) -> User:
         user = await self.db_session.execute(select(User).filter(User.email == email))
@@ -38,9 +50,8 @@ class CrudMethods:
 
         return user.scalars().first()
 
-
     async def create_user(self, user: UserCreateSchema) -> User:
-        db_user = await self.get_user_by_email(user.email)
+        db_user = (await self.db_session.execute(select(User).filter(User.email == user.email))).scalars().first()
 
         if db_user:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="user with this email already exists")
@@ -55,7 +66,11 @@ class CrudMethods:
         self.db_session.add(new_user)
         await self.db_session.flush()
 
-        return new_user
+        return UserGetSchema(**{"id": new_user.id,
+                                "name": new_user.name,
+                                "surname": new_user.surname,
+                                "email": new_user.email,
+                                "age": new_user.age})
 
     async def delete_user(self, user_id: int) -> None:
         db_user = await self.get_user_by_id(user_id=user_id)
@@ -66,7 +81,7 @@ class CrudMethods:
         await self.db_session.commit()
 
     async def update_user(self, user_id: int, user: UserUpdateSchema) -> None:
-        db_user = await self.get_user_by_id(user_id=user_id)
+        db_user = (await self.db_session.execute(select(User).filter(User.id == user_id))).scalars().first()
 
         if db_user is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user with this id doesn't exist")
@@ -87,7 +102,7 @@ class CrudMethods:
             .execution_options(synchronize_session="fetch")
         )
         await self.db_session.execute(query)
-        await self.db_session.commit()
+        await self.db_session.flush()
 
     async def create_user_auth(self, email: str) -> User:
         new_user = User(
@@ -101,4 +116,8 @@ class CrudMethods:
         self.db_session.add(new_user)
         await self.db_session.flush()
 
-        return new_user
+        return UserGetSchema(**{"id": new_user.id,
+                                "name": new_user.name,
+                                "surname": new_user.surname,
+                                "email": new_user.email,
+                                "age": new_user.age})
