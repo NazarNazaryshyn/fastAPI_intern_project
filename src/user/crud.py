@@ -4,6 +4,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import Session
 
+from src.company.crud import CompanyCrudMethods
+from src.company.models import Invite, Request
 from src.database import async_session
 from src.user.models import User
 from src.user.schemas import UserCreateSchema, UserUpdateSchema
@@ -11,7 +13,7 @@ from src.user.schemas import UserCreateSchema, UserUpdateSchema
 from src.auth.auth import auth_handler
 
 from typing import List
-from src.user.schemas import UserGetSchema
+
 
 db = async_session()
 
@@ -24,29 +26,24 @@ class CrudMethods:
     async def get_all_users(self) -> List[User]:
         users = (await self.db_session.execute(select(User))).scalars().all()
 
-        return list(UserGetSchema(**{"id": user.id,
-                                     "name": user.name,
-                                     "surname": user.surname,
-                                     "email": user.email,
-                                     "age": user.age}) for user in users)
+        return users
 
-    async def get_user_by_id(self, user_id: int) -> User:
-        user = (await self.db_session.execute(select(User).filter(User.id == user_id))).scalars().first()
+    async def get_user_by_id(self, user_id: int) -> User or None:
+        user = (await self.db_session.execute(select(User)
+                                              .filter(User.id == user_id)))\
+                                              .scalars().first()
 
         if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"there is no user with id {user_id}")
+            return None
 
-        return UserGetSchema(**{"id": user_id,
-                                "name": user.name,
-                                "surname": user.surname,
-                                "email": user.email,
-                                "age": user.age})
+        return user
 
     async def get_user_by_email(self, email: str) -> User:
         user = await self.db_session.execute(select(User).filter(User.email == email))
 
         if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user with this email doesn't exist")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="user with this email doesn't exist")
 
         return user.scalars().first()
 
@@ -54,7 +51,8 @@ class CrudMethods:
         db_user = (await self.db_session.execute(select(User).filter(User.email == user.email))).scalars().first()
 
         if db_user:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="user with this email already exists")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="user with this email already exists")
 
         new_user = User(
             name=user.name,
@@ -66,11 +64,7 @@ class CrudMethods:
         self.db_session.add(new_user)
         await self.db_session.flush()
 
-        return UserGetSchema(**{"id": new_user.id,
-                                "name": new_user.name,
-                                "surname": new_user.surname,
-                                "email": new_user.email,
-                                "age": new_user.age})
+        return new_user
 
     async def delete_user(self, user_id: int) -> None:
         db_user = await self.get_user_by_id(user_id=user_id)
@@ -84,22 +78,24 @@ class CrudMethods:
         db_user = (await self.db_session.execute(select(User).filter(User.id == user_id))).scalars().first()
 
         if db_user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user with this id doesn't exist")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="user with this id doesn't exist")
 
         if user.email is not None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you are not able to change your email")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="you are not able to change your email")
 
         query = (
             update(User)
-            .where(User.id == user_id)
-            .values(
+                .where(User.id == user_id)
+                .values(
                 name=db_user.name if user.name is None else user.name,
                 surname=db_user.surname if user.surname is None else user.surname,
                 age=db_user.age if user.age is None else user.age,
                 password=db_user.password if user.password is None else auth_handler.get_password_hash(user.password),
                 updated_at=datetime.datetime.now()
             )
-            .execution_options(synchronize_session="fetch")
+                .execution_options(synchronize_session="fetch")
         )
         await self.db_session.execute(query)
         await self.db_session.flush()
@@ -116,8 +112,52 @@ class CrudMethods:
         self.db_session.add(new_user)
         await self.db_session.flush()
 
-        return UserGetSchema(**{"id": new_user.id,
-                                "name": new_user.name,
-                                "surname": new_user.surname,
-                                "email": new_user.email,
-                                "age": new_user.age})
+        return new_user
+
+    async def get_invite(self, company_id: int, current_user: User) -> Invite or None:
+        invite = (await self.db_session.execute(select(Invite)
+                                                .filter(Invite.user_id == current_user.id,
+                                                        Invite.company_id == company_id))) \
+                                                .scalars().first()
+
+        if invite is None:
+            return None
+
+        return invite
+
+    async def accept_invite(self, company_id: int, current_user: User) -> None:
+        invite = await self.get_invite(company_id=company_id, current_user=current_user)
+
+        if invite is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"there is no invites from company with id {company_id}")
+
+        query = (
+            update(Invite)
+            .where(Invite.user_id == current_user.id,
+                   Invite.company_id == company_id)
+            .values(
+                is_accepted=True
+            )
+            .execution_options(synchronize_session="fetch")
+        )
+
+        await self.db_session.execute(query)
+        await self.db_session.flush()
+
+    async def make_request(self, company_id: int, current_user: User) -> Request:
+        company_crud = CompanyCrudMethods(db_session=self.db_session)
+        company = await company_crud.get_company_by_id(company_id=company_id)
+
+        if company is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"there is no company with id {company_id}")
+
+        new_request = Request(user_id=current_user.id,
+                              company_id=company_id,
+                              is_accepted=False)
+
+        self.db_session.add(new_request)
+        await self.db_session.flush()
+
+        return new_request
