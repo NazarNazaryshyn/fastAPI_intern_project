@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from src.database import async_session
 from src.company.models import Company, Invite, Request
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy.orm import selectinload
 
@@ -12,10 +12,25 @@ from src.user.models import User
 db = async_session()
 
 
-class CompanyCrudMethods:
+class CompanyCrudMethod:
 
     def __init__(self, db_session: Session):
         self.db_session = db_session
+
+    async def user_is_owner(self, user_id: int, owner_id: int) -> None:
+        if user_id != owner_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="you have no access")
+
+    async def if_company_exists(self, company: Company, company_id: int) -> None:
+        if company is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"there is no company with id {company_id}")
+
+    async def if_employee_exists(self, employee: User, employee_id: int) -> None:
+        if employee is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"there is no user with id {employee_id}")
 
     async def get_all_companies(self) -> List[Company]:
         companies = (await self.db_session.execute(select(Company)
@@ -37,7 +52,7 @@ class CompanyCrudMethods:
     async def get_company_by_id(self, company_id: int) -> Company or None:
         company = (await self.db_session.execute(select(Company)
                                                  .filter(Company.id == company_id)
-                                                 .options(selectinload(Company.employees_in_company))))\
+                                                 .options(selectinload(Company.employees))))\
                                                  .scalars().first()
 
         if company is None:
@@ -48,7 +63,7 @@ class CompanyCrudMethods:
     async def get_company_admins(self, company_id: int) -> Company or None:
         company = (await self.db_session.execute(select(Company)
                                                  .filter(Company.id == company_id)
-                                                 .options(selectinload(Company.admins_in_company))))\
+                                                 .options(selectinload(Company.admins))))\
                                                  .scalars().first()
 
         if company is None:
@@ -78,13 +93,9 @@ class CompanyCrudMethods:
     async def change_visibility(self, company_id: int, is_visible: bool, current_user: User) -> None:
         company = await self.get_company_by_id(company_id=company_id)
 
-        if company is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no company with id {company_id}")
+        await self.if_company_exists(company=company, company_id=company_id)
 
-        if company.owner_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="you have no access")
+        await self.user_is_owner(user_id=current_user.id, owner_id=company.owner_id)
 
         query = (
             update(Company)
@@ -95,18 +106,14 @@ class CompanyCrudMethods:
             .execution_options(synchronize_session="fetch")
         )
         await self.db_session.execute(query)
-        await self.db_session.flush()
+        await self.db_session.commit()
 
     async def update_company(self, company_id: int, title: str, description: str, current_user: User) -> None:
         company = await self.get_company_by_id(company_id=company_id)
 
-        if company is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no company with id {company_id}")
+        await self.if_company_exists(company=company, company_id=company_id)
 
-        if company.owner_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="you have no access")
+        await self.user_is_owner(user_id=current_user.id, owner_id=company.owner_id)
 
         query = (
             update(Company)
@@ -123,13 +130,9 @@ class CompanyCrudMethods:
     async def delete_company(self, company_id: int, current_user: User) -> None:
         company = await self.get_company_by_id(company_id=company_id)
 
-        if company is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail={f"there is no company with id {company_id}"})
+        await self.if_company_exists(company=company, company_id=company_id)
 
-        if company.owner_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="you have no access")
+        await self.user_is_owner(user_id=current_user.id, owner_id=company.owner_id)
 
         await self.db_session.execute(delete(Company).filter(Company.id == company_id))
         await self.db_session.commit()
@@ -137,12 +140,9 @@ class CompanyCrudMethods:
     async def invite_user_to_company(self, user_id: int, company_id: int, current_user: User) -> Invite:
         company = await self.get_company_by_id(company_id=company_id)
 
-        if company is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f'there is no company with id {company_id}')
-        if current_user.id != company.owner_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail='you have no access')
+        await self.if_company_exists(company=company, company_id=company_id)
+
+        await self.user_is_owner(user_id=current_user.id, owner_id=company.owner_id)
 
         new_invite = Invite(user_id=user_id,
                             company_id=company_id,
@@ -159,35 +159,31 @@ class CompanyCrudMethods:
         company = await self.get_company_by_id(company_id=company_id)
         user = await CrudMethods(db_session=self.db_session).get_user_by_id(user_id=user_id)
 
-        company.employees_in_company.append(user)
+        company.employees.append(user)
 
         await self.db_session.commit()
 
     async def remove_employee_from_company(self, employee_id: int, company_id: int, current_user: User) -> None:
         from src.user.crud import CrudMethods
-
         user_crud = CrudMethods(db_session=self.db_session)
 
         employee = await user_crud.get_user_by_id(user_id=employee_id)
         company = await self.get_company_by_id(company_id=company_id)
 
-        if employee is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no user with id {employee_id}")
-        if company is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no company with id {company_id}")
-        if company.owner_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="you have no access")
-        if employee not in company.employees_in_company:
+        await self.if_employee_exists(employee=employee, employee_id=employee_id)
+
+        await self.if_company_exists(company=company, company_id=company_id)
+
+        await self.user_is_owner(user_id=current_user.id, owner_id=company.owner_id)
+
+        if employee not in company.employees:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f"there is no employee with id {employee_id} in company with id {company_id}")
 
-        company.employees_in_company.remove(employee)
+        company.employees.remove(employee)
         await self.db_session.commit()
 
-    async def get_request(self, user_id: int, company_id: int) -> Request or None:
+    async def get_request(self, user_id: int, company_id: int) -> Optional[Request]:
         request = (await self.db_session.execute(select(Request)
                                                  .filter(Request.user_id == user_id,
                                                          Request.company_id == company_id)))\
@@ -204,17 +200,16 @@ class CompanyCrudMethods:
         user_crud = CrudMethods(db_session=self.db_session)
         user = await user_crud.get_user_by_id(user_id=user_id)
         company = await self.get_company_by_id(company_id=company_id)
+
         if user is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f"there is no user with id {user_id}")
-        if company is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no company with id {company_id}")
-        if company.owner_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail=f"you have no access")
 
-        request = self.get_request(user_id=user_id, company_id=company_id)
+        await self.if_company_exists(company=company, company_id=company_id)
+
+        await self.user_is_owner(user_id=current_user.id, owner_id=company.owner_id)
+
+        request = await self.get_request(user_id=user_id, company_id=company_id)
 
         if request is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -230,7 +225,7 @@ class CompanyCrudMethods:
         )
 
         await self.db_session.execute(query)
-        await self.db_session.flush()
+        await self.db_session.commit()
 
     async def appoint_admin(self, user_id: int, company_id: int, current_user: User) -> None:
         from src.user.crud import CrudMethods
@@ -244,17 +239,14 @@ class CompanyCrudMethods:
         company = await self.get_company_admins(company_id=company_id)
         company_employees = await self.get_company_by_id(company_id=company_id)
 
-        if company is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"company with id {company_id} doesn't exist")
-        if company.owner_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="you have no access")
-        if user not in company_employees.employees_in_company:
+        await self.if_company_exists(company=company, company_id=company_id)
+
+        await self.user_is_owner(user_id=current_user.id, owner_id=company.owner_id)
+        if user not in company_employees.employees:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f"there is no user with id {user_id} in company with id {company_id}")
 
-        company.admins_in_company.append(user)
+        company.admins.append(user)
 
         await self.db_session.commit()
 
@@ -267,18 +259,15 @@ class CompanyCrudMethods:
         company = await self.get_company_by_id(company_id=company_id)
         company_admins = await self.get_company_admins(company_id=company_id)
 
-        if employee is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no user with id {employee_id}")
-        if company is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no company with id {company_id}")
-        if company.owner_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="you have no access")
-        if employee not in company_admins.admins_in_company:
+        await self.if_employee_exists(employee=employee, employee_id=employee_id)
+        await self.if_company_exists(company=company, company_id=company_id)
+        await self.user_is_owner(user_id=current_user.id, owner_id=company.owner_id)
+
+        if employee not in company_admins.admins:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f"there is no admin with id {employee_id} in company with id {company_id}")
 
-        company_admins.admins_in_company.remove(employee)
+        company_admins.admins.remove(employee)
         await self.db_session.commit()
+
+

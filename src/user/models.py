@@ -18,6 +18,6 @@ class User(Base):
     created_at = Column(Date, default=datetime.datetime.now, nullable=False)
     updated_at = Column(Date, default=datetime.datetime.now, nullable=False)
     companies = relationship("Company", backref=backref("owner", lazy="joined"))
-    employee_in_companies = relationship("Company", secondary=company_employees, back_populates="employees_in_company")
-    admin_in_companies = relationship("Company", secondary=company_admins, back_populates="admins_in_company")
+    companies_employees = relationship("Company", secondary=company_employees, back_populates="employees")
+    companies_admins = relationship("Company", secondary=company_admins, back_populates="admins")
 

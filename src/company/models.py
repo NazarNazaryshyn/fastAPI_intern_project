@@ -1,4 +1,4 @@
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from src.database import Base
 from sqlalchemy import Column, String, Integer, ForeignKey, Table, Boolean
@@ -22,12 +22,13 @@ class Company(Base):
     __tablename__ = "companies"
 
     id = Column(Integer, primary_key=True, index=True, nullable=False)
-    title = Column(String, nullable=False)
+    title = Column(String, unique=True, nullable=False)
     description = Column(String, nullable=False)
     is_visible = Column(Boolean, nullable=False, default=True)
     owner_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'))
-    employees_in_company = relationship("User", secondary=company_employees, back_populates="employee_in_companies")
-    admins_in_company = relationship("User", secondary=company_admins, back_populates="admin_in_companies")
+    employees = relationship("User", secondary=company_employees, back_populates="companies_employees")
+    admins = relationship("User", secondary=company_admins, back_populates="companies_admins")
+    quizzes = relationship("Quiz", backref=backref("company", lazy="joined"))
 
 
 class Invite(Base):

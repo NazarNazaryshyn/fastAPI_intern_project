@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import Session
 
-from src.company.crud import CompanyCrudMethods
+from src.company.crud import CompanyCrudMethod
 from src.company.models import Invite, Request
 from src.database import async_session
 from src.user.models import User
@@ -87,15 +87,15 @@ class CrudMethods:
 
         query = (
             update(User)
-                .where(User.id == user_id)
-                .values(
+            .where(User.id == user_id)
+            .values(
                 name=db_user.name if user.name is None else user.name,
                 surname=db_user.surname if user.surname is None else user.surname,
                 age=db_user.age if user.age is None else user.age,
                 password=db_user.password if user.password is None else auth_handler.get_password_hash(user.password),
                 updated_at=datetime.datetime.now()
             )
-                .execution_options(synchronize_session="fetch")
+            .execution_options(synchronize_session="fetch")
         )
         await self.db_session.execute(query)
         await self.db_session.flush()
@@ -146,8 +146,8 @@ class CrudMethods:
         await self.db_session.flush()
 
     async def make_request(self, company_id: int, current_user: User) -> Request:
-        company_crud = CompanyCrudMethods(db_session=self.db_session)
-        company = await company_crud.get_company_by_id(company_id=company_id)
+        company_crud_method = CompanyCrudMethod(db_session=self.db_session)
+        company = await company_crud_method .get_company_by_id(company_id=company_id)
 
         if company is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

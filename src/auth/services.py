@@ -40,3 +40,4 @@ async def get_current_user(token: str = Depends(token_auth_scheme)) -> User:
 
                 return await user_crud.create_user_auth(email=email)
     return user
+

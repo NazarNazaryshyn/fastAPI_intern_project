@@ -1,4 +1,6 @@
 from fastapi import HTTPException, APIRouter, Depends
+from sqlmodel import Session
+
 from .auth import auth_handler
 from src.database import async_session
 from src.user.schemas import UserGetSchema
@@ -7,17 +9,18 @@ from src.user.crud import CrudMethods
 from .services import get_current_user
 
 from src.auth.schemes import TokenScheme
-
+from ..user.models import User
 
 auth_router = APIRouter()
 db = async_session()
 
 
 @auth_router.post('/login', response_model=TokenScheme)
-async def login(email: str, password: str) -> str:
+async def login(email: str, password: str) -> TokenScheme:
     async with async_session() as session:
         async with session.begin():
             user_crud = CrudMethods(db_session=session)
+
             user = await user_crud.get_user_by_email(email=email)
 
     if (user is None) or (not auth_handler.verify_password(password, user.password)):
@@ -28,6 +31,6 @@ async def login(email: str, password: str) -> str:
 
 
 @auth_router.get('/me', response_model=UserGetSchema)
-async def me(current_user: str = Depends(get_current_user)) -> UserGetSchema:
+async def me(current_user: str = Depends(get_current_user)) -> User:
 
     return current_user
