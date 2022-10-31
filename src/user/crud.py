@@ -23,6 +23,11 @@ class CrudMethods:
     def __init__(self, db_session: Session):
         self.db_session = db_session
 
+    async def check_for_permission(self, id_1: int, id_2: int) -> None:
+        if id_1 != id_2:
+            raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                                detail='you have no access')
+
     async def get_all_users(self) -> List[User]:
         users = (await self.db_session.execute(select(User))).scalars().all()
 
@@ -34,7 +39,8 @@ class CrudMethods:
                                               .scalars().first()
 
         if user is None:
-            return None
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"there is no user with id {user_id}")
 
         return user
 
@@ -121,16 +127,15 @@ class CrudMethods:
                                                 .scalars().first()
 
         if invite is None:
-            return None
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"there is no invite from company with id {company_id}")
 
         return invite
 
     async def accept_invite(self, company_id: int, current_user: User) -> None:
-        invite = await self.get_invite(company_id=company_id, current_user=current_user)
 
-        if invite is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no invites from company with id {company_id}")
+        # to check whether invite from this company exists
+        await self.get_invite(company_id=company_id, current_user=current_user)
 
         query = (
             update(Invite)
@@ -147,11 +152,8 @@ class CrudMethods:
 
     async def make_request(self, company_id: int, current_user: User) -> Request:
         company_crud_method = CompanyCrudMethod(db_session=self.db_session)
-        company = await company_crud_method .get_company_by_id(company_id=company_id)
 
-        if company is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no company with id {company_id}")
+        await company_crud_method.get_company_by_id(company_id=company_id)
 
         new_request = Request(user_id=current_user.id,
                               company_id=company_id,

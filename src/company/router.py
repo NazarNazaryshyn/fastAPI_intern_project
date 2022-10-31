@@ -159,3 +159,16 @@ async def remove_employee_from_company(employee_id: int, company_id: int, curren
             return {f"employee with id {employee_id} was deprived of administrator rights in company with id {company_id}"}
 
 
+@comp_router.get("get_quizzes_for_company/{company_id}")
+async def get_quizzes_for_company(company_id: int, current_user = Depends(get_current_user)):
+    async with async_session() as session:
+        async with session.begin():
+            from src.quiz.crud import QuizCrudMethods
+
+            quiz_crud_method = QuizCrudMethods(db_session=session)
+
+            quizzes = await quiz_crud_method.get_quizzes_for_company(company_id=company_id)
+
+            return quizzes
+
+

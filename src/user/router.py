@@ -12,8 +12,6 @@ from src.user.crud import CrudMethods
 from src.user.models import User
 
 
-
-
 router = APIRouter()
 token_auth_scheme = HTTPBearer()
 db = async_session()
@@ -26,6 +24,7 @@ async def get_all_users(current_user: User = Depends(get_current_user)) -> List[
             user_crud = CrudMethods(db_session=session)
 
             users = await user_crud.get_all_users()
+
             return [UserGetSchema(id=user.id,
                                   name=user.name,
                                   surname=user.surname,
@@ -40,8 +39,6 @@ async def get_user(user_id: int, current_user: User = Depends(get_current_user))
             user_crud = CrudMethods(db_session=session)
 
             user = await user_crud.get_user_by_id(user_id=user_id)
-            if user is None:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
             return UserGetSchema(id=user.id,
                                  name=user.name,
@@ -58,9 +55,7 @@ async def update_user(user_id: int, user: UserUpdateSchema, current_user: User =
 
             current_user = await user_crud.get_user_by_email(email=current_user.email)
 
-            if current_user.id != user_id:
-                raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                                    detail='you have no access')
+            await user_crud.check_for_permission(id_1=current_user.id, id_2=user_id)
 
             await user_crud.update_user(user_id=user_id, user=user)
 
@@ -76,10 +71,10 @@ async def create_user(user: UserCreateSchema) -> UserGetSchema:
             user = await user_crud.create_user(user=user)
 
             return UserGetSchema(id=user.id,
-                             name=user.name,
-                             surname=user.surname,
-                             age=user.age,
-                             email=user.email)
+                                 name=user.name,
+                                 surname=user.surname,
+                                 age=user.age,
+                                 email=user.email)
 
 
 @router.delete("/{user_id}", response_model=UserInfo)
@@ -90,9 +85,7 @@ async def delete_user(user_id: int, current_user: User = Depends(get_current_use
 
             current_user = await user_crud.get_user_by_email(email=current_user.email)
 
-            if current_user.id != user_id:
-                raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                                    detail='you have no access')
+            await user_crud.check_for_permission(id_1=current_user.id, id_2=user_id)
 
             await user_crud.delete_user(user_id=user_id)
 
