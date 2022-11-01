@@ -44,7 +44,7 @@ class CompanyCrud:
 
         return companies
 
-    async def get_company_by_title(self, title: str) -> Company or None:
+    async def get_company_by_title(self, title: str) -> Optional[Company]:
         company = (await self.db_session.execute(select(Company)
                                                  .filter(Company.title == title)))\
                                                  .scalars().first()
@@ -54,7 +54,7 @@ class CompanyCrud:
 
         return company
 
-    async def get_company_by_id(self, company_id: int) -> Company or None:
+    async def get_company_by_id(self, company_id: int) -> Optional[Company]:
         company = (await self.db_session.execute(select(Company)
                                                  .filter(Company.id == company_id)
                                                  .options(selectinload(Company.employees))))\
@@ -66,7 +66,7 @@ class CompanyCrud:
 
         return company
 
-    async def get_company_admins(self, company_id: int) -> Company or None:
+    async def get_company_admins(self, company_id: int) -> Optional[Company]:
         company = (await self.db_session.execute(select(Company)
                                                  .filter(Company.id == company_id)
                                                  .options(selectinload(Company.admins))))\
