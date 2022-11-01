@@ -1,5 +1,8 @@
+from sqlalchemy.orm import relationship, backref
+
 from src.database import Base
 from sqlalchemy import Column, String, Integer, Date
+from src.company.models import company_employees, company_admins
 import datetime
 
 
@@ -14,5 +17,7 @@ class User(Base):
     password = Column(String, nullable=False)
     created_at = Column(Date, default=datetime.datetime.now, nullable=False)
     updated_at = Column(Date, default=datetime.datetime.now, nullable=False)
-
+    companies = relationship("Company", backref=backref("owner", lazy="joined"))
+    companies_employees = relationship("Company", secondary=company_employees, back_populates="employees")
+    companies_admins = relationship("Company", secondary=company_admins, back_populates="admins")
 

@@ -5,6 +5,8 @@ from src.user.models import Base
 from .config import settings
 from src.user.router import router
 from src.auth.router import auth_router
+from src.company.router import comp_router
+from src.quiz.router import quiz_router
 import databases
 import aioredis
 from fastapi.security import HTTPBearer
@@ -51,3 +53,5 @@ async def root():
 
 app.include_router(router, prefix='/user', tags=["user"])
 app.include_router(auth_router, prefix='/auth', tags=["auth"])
+app.include_router(comp_router, prefix='/company', tags=["company"])
+app.include_router(quiz_router, prefix='/quiz', tags=['quiz'])
