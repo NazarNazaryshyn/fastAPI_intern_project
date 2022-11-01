@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import Session
 
-from src.company.crud import CompanyCrudMethod
+from src.company.crud import CompanyCrud
 from src.company.models import Invite, Request
 from src.database import async_session
 from src.user.models import User
@@ -18,7 +18,7 @@ from typing import List
 db = async_session()
 
 
-class CrudMethods:
+class UserCrud:
 
     def __init__(self, db_session: Session):
         self.db_session = db_session
@@ -151,7 +151,7 @@ class CrudMethods:
         await self.db_session.flush()
 
     async def make_request(self, company_id: int, current_user: User) -> Request:
-        company_crud_method = CompanyCrudMethod(db_session=self.db_session)
+        company_crud_method = CompanyCrud(db_session=self.db_session)
 
         await company_crud_method.get_company_by_id(company_id=company_id)
 

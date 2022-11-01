@@ -7,13 +7,12 @@ from typing import List, Optional
 
 from sqlalchemy.orm import selectinload
 
-from src.quiz.models import Quiz
 from src.user.models import User
 
 db = async_session()
 
 
-class CompanyCrudMethod:
+class CompanyCrud:
 
     def __init__(self, db_session: Session):
         self.db_session = db_session
@@ -28,6 +27,16 @@ class CompanyCrudMethod:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f"there is no user with id {employee_id}")
 
+    async def check_if_employee_in_company(self, employee: User, employees: list, employee_id: int, company_id: int) -> None:
+        if employee not in employees:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"there is no employee with id {employee_id} in company with id {company_id}")
+
+    async def check_if_employee_in_admins(self, employee: User, admins: list, employee_id: int, company_id: int) -> None:
+        if employee not in admins:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"there is no admin with id {employee_id} in company with id {company_id}")
+
     async def get_all_companies(self) -> List[Company]:
         companies = (await self.db_session.execute(select(Company)
                                                    .filter(Company.is_visible == True)))\
@@ -41,7 +50,7 @@ class CompanyCrudMethod:
                                                  .scalars().first()
 
         if company is None:
-            None
+            return None
 
         return company
 
@@ -143,29 +152,32 @@ class CompanyCrudMethod:
         return new_invite
 
     async def add_user_to_employees(self, user_id: int, company_id: int) -> None:
-        from src.user.crud import CrudMethods
+        from src.user.crud import UserCrud
 
         company = await self.get_company_by_id(company_id=company_id)
-        user = await CrudMethods(db_session=self.db_session).get_user_by_id(user_id=user_id)
+        user = await UserCrud(db_session=self.db_session).get_user_by_id(user_id=user_id)
 
         company.employees.append(user)
 
         await self.db_session.commit()
 
     async def remove_employee_from_company(self, employee_id: int, company_id: int, current_user: User) -> None:
-        from src.user.crud import CrudMethods
-        user_crud = CrudMethods(db_session=self.db_session)
+        from src.user.crud import UserCrud
+        user_crud = UserCrud(db_session=self.db_session)
 
         employee = await user_crud.get_user_by_id(user_id=employee_id)
         company = await self.get_company_by_id(company_id=company_id)
 
-        await self.if_employee_exists(employee=employee, employee_id=employee_id)
+        await self.if_employee_exists(employee=employee,
+                                      employee_id=employee_id)
 
-        await self.user_is_owner(user_id=current_user.id, owner_id=company.owner_id)
+        await self.user_is_owner(user_id=current_user.id,
+                                 owner_id=company.owner_id)
 
-        if employee not in company.employees:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no employee with id {employee_id} in company with id {company_id}")
+        await self.check_if_employee_in_company(employee=employee,
+                                                employees=company.employees,
+                                                employee_id=employee_id,
+                                                company_id=company_id)
 
         company.employees.remove(employee)
         await self.db_session.commit()
@@ -183,9 +195,9 @@ class CompanyCrudMethod:
         return request
 
     async def accept_request(self, user_id: int, company_id: int, current_user: User) -> None:
-        from src.user.crud import CrudMethods
+        from src.user.crud import UserCrud
 
-        user_crud = CrudMethods(db_session=self.db_session)
+        user_crud = UserCrud(db_session=self.db_session)
         await user_crud.get_user_by_id(user_id=user_id)
 
         company = await self.get_company_by_id(company_id=company_id)
@@ -207,39 +219,43 @@ class CompanyCrudMethod:
         await self.db_session.commit()
 
     async def appoint_admin(self, user_id: int, company_id: int, current_user: User) -> None:
-        from src.user.crud import CrudMethods
-        user_crud = CrudMethods(db_session=self.db_session)
+        from src.user.crud import UserCrud
+        user_crud = UserCrud(db_session=self.db_session)
 
         user = await user_crud.get_user_by_id(user_id=user_id)
 
         company = await self.get_company_admins(company_id=company_id)
         company_employees = await self.get_company_by_id(company_id=company_id)
 
-        await self.user_is_owner(user_id=current_user.id, owner_id=company.owner_id)
+        await self.user_is_owner(user_id=current_user.id,
+                                 owner_id=company.owner_id)
 
-        if user not in company_employees.employees:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no user with id {user_id} in company with id {company_id}")
+        await self.check_if_employee_in_company(employee=user,
+                                                employees=company_employees.employees,
+                                                employee_id=user_id,
+                                                company_id=company_id)
 
         company.admins.append(user)
 
         await self.db_session.commit()
 
     async def remove_admin_from_company(self, employee_id: int, company_id: int, current_user: User) -> None:
-        from src.user.crud import CrudMethods
+        from src.user.crud import UserCrud
 
-        user_crud = CrudMethods(db_session=self.db_session)
+        user_crud = UserCrud(db_session=self.db_session)
 
         employee = await user_crud.get_user_by_id(user_id=employee_id)
         company = await self.get_company_by_id(company_id=company_id)
         company_admins = await self.get_company_admins(company_id=company_id)
 
         await self.if_employee_exists(employee=employee, employee_id=employee_id)
+
         await self.user_is_owner(user_id=current_user.id, owner_id=company.owner_id)
 
-        if employee not in company_admins.admins:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no admin with id {employee_id} in company with id {company_id}")
+        await self.check_if_employee_in_admins(employee=employee,
+                                               admins=company_admins.admins,
+                                               employee_id=employee_id,
+                                               company_id=company_id)
 
         company_admins.admins.remove(employee)
         await self.db_session.commit()

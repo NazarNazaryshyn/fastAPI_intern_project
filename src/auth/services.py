@@ -4,7 +4,7 @@ from fastapi.security import HTTPBearer
 from src.auth.auth import auth_handler
 from src.auth.utils import VerifyToken
 from src.database import async_session
-from src.user.crud import CrudMethods
+from src.user.crud import UserCrud
 
 from src.user.models import User
 
@@ -29,14 +29,14 @@ async def get_current_user(token: str = Depends(token_auth_scheme)) -> User:
 
     async with async_session() as session:
         async with session.begin():
-            user_crud = CrudMethods(db_session=session)
+            user_crud = UserCrud(db_session=session)
 
             user = await user_crud.get_user_by_email(email=email)
 
     if user is None:
         async with async_session() as session:
             async with session.begin():
-                user_crud = CrudMethods(db_session=session)
+                user_crud = UserCrud(db_session=session)
 
                 return await user_crud.create_user_auth(email=email)
     return user
