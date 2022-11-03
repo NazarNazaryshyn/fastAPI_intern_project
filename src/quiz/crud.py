@@ -254,6 +254,8 @@ class QuizCrud:
         for index, question in enumerate(quiz_from_db.questions):
             question_from_db = (await self.db_session.execute(select(Question).filter(Question.id == question.id).options(selectinload(Question.variants)))).scalars().first()
 
+            redis_client.set(name=question.id, value=quiz.answers[index], ex=60*60*24*2)
+
             if len(question_from_db.variants) < 2:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                     detail="you cannot answer for question which contains less than two options")
