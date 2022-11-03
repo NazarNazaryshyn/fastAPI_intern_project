@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 
 
@@ -32,6 +32,20 @@ class QuizWithQuestion(BaseModel):
     description: str
     frequency: int
     questions: list
+
+    class Config:
+        orm_mode = True
+
+
+class TakeQuiz(BaseModel):
+    quiz_id: int
+    company_id: int
+    answers: List[str]
+
+    class Config:
+        orm_mode = True
+
+
 
 
 

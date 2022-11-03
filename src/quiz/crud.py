@@ -2,24 +2,25 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, delete, update
 from sqlalchemy.orm import Session, selectinload
 
-from src.quiz.models import Quiz, Question, Variant, Result
+from src.quiz.models import Quiz, Question, AnswerVariant, Result
 from src.user.models import User
 
-from src.quiz.schemes import QuizWithQuestion
+from src.quiz.schemes import QuizWithQuestion, TakeQuiz
 
-from typing import List
+from typing import List, Optional
 
+from src.redis_init import redis_client
 
 class QuizCrud:
 
     def __init__(self, db_session: Session):
         self.db_session = db_session
 
-    async def create_quiz(self, company_id: int, title: str, description: str, current_user: User) -> Quiz:
+    async def create_quiz(self, company_id: int, title: str, description: str, frequency: int, current_user: User) -> Quiz:
         from src.company.crud import CompanyCrud
         company_crud_method = CompanyCrud(db_session=self.db_session)
 
-        company = await company_crud_method.get_company_admins(company_id=company_id)
+        company = await company_crud_method.get_company_with_admins(company_id=company_id)
 
         admins_id = [admin.id for admin in company.admins]
 
@@ -32,17 +33,17 @@ class QuizCrud:
             company_id=company_id,
             title=title,
             description=description,
-            frequency=0
+            frequency=frequency
         )
 
         self.db_session.add(new_quiz)
-        await self.db_session.flush()
+        await self.db_session.commit()
 
         return new_quiz
 
     async def get_quiz_by_id(self, quiz_id: int) -> Quiz or None:
         quiz = (await self.db_session.execute(select(Quiz)
-                                              .filter(Quiz.id == quiz_id))) \
+                                              .filter(Quiz.id == quiz_id).options(selectinload(Quiz.questions)))) \
             .scalars().first()
 
         if quiz is None:
@@ -68,14 +69,15 @@ class QuizCrud:
                                 question=question)
 
         self.db_session.add(new_question)
-        await self.db_session.flush()
+        await self.db_session.commit()
 
         return new_question
 
     async def get_question_by_id(self, question_id: int) -> Question or None:
         question = (await self.db_session.execute(select(Question)
-                                                  .filter(Question.id == question_id))) \
-            .scalars().first()
+                                                  .filter(Question.id == question_id)
+                                                  .options(selectinload(Question.variants)))) \
+                                                  .scalars().first()
 
         if question is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -83,15 +85,15 @@ class QuizCrud:
 
         return question
 
-    async def create_variant(self, question_id: int, answer: str, is_correct: bool) -> Variant:
+    async def create_variant(self, question_id: int, answer: str, is_correct: bool) -> AnswerVariant:
         await self.get_question_by_id(question_id=question_id)
 
-        new_variant = Variant(question_id=question_id,
-                              answer=answer,
-                              is_correct=is_correct)
+        new_variant = AnswerVariant(question_id=question_id,
+                                    answer=answer,
+                                    is_correct=is_correct)
 
         self.db_session.add(new_variant)
-        await self.db_session.flush()
+        await self.db_session.commit()
 
         return new_variant
 
@@ -103,7 +105,7 @@ class QuizCrud:
         company_crud_method = CompanyCrud(db_session=self.db_session)
 
         company = await company_crud_method.get_company_by_id(company_id=quiz.company_id)
-        comp = await company_crud_method.get_company_admins(company_id=quiz.company_id)
+        comp = await company_crud_method.get_company_with_admins(company_id=quiz.company_id)
 
         admins_ids = [admin.id for admin in comp.admins]
 
@@ -123,7 +125,7 @@ class QuizCrud:
         company_crud_method = CompanyCrud(db_session=self.db_session)
 
         company = await company_crud_method.get_company_by_id(company_id=quiz.company_id)
-        comp = await company_crud_method.get_company_admins(company_id=quiz.company_id)
+        comp = await company_crud_method.get_company_with_admins(company_id=quiz.company_id)
 
         admins_ids = [admin.id for admin in comp.admins]
 
@@ -143,7 +145,7 @@ class QuizCrud:
                 .execution_options(synchronize_session="fetch")
         )
         await self.db_session.execute(query)
-        await self.db_session.flush()
+        await self.db_session.commit()
 
     async def update_question(self, question_id: int, question: str, current_user: User) -> None:
         from src.company.crud import CompanyCrud
@@ -154,7 +156,7 @@ class QuizCrud:
 
         quiz = await self.get_quiz_by_id(quiz_id=question_from_db.quiz_id)
         company = await company_crud_method.get_company_by_id(company_id=quiz.company_id)
-        comp = await company_crud_method.get_company_admins(company_id=quiz.company_id)
+        comp = await company_crud_method.get_company_with_admins(company_id=quiz.company_id)
 
         admins_ids = [admin.id for admin in comp.admins]
 
@@ -172,11 +174,11 @@ class QuizCrud:
                 .execution_options(synchronize_session="fetch")
         )
         await self.db_session.execute(query)
-        await self.db_session.flush()
+        await self.db_session.commit()
 
-    async def get_variant(self, variant_id: int) -> Variant or None:
-        variant = (await self.db_session.execute(select(Variant)
-                                                 .filter(Variant.id == variant_id))) \
+    async def get_variant(self, variant_id: int) -> Optional[AnswerVariant]:
+        variant = (await self.db_session.execute(select(AnswerVariant)
+                                                 .filter(AnswerVariant.id == variant_id))) \
             .scalars().first()
 
         if variant is None:
@@ -196,7 +198,7 @@ class QuizCrud:
 
         quiz = await self.get_quiz_by_id(quiz_id=question_from_db.quiz_id)
         company = await company_crud_method.get_company_by_id(company_id=quiz.company_id)
-        comp = await company_crud_method.get_company_admins(company_id=quiz.company_id)
+        comp = await company_crud_method.get_company_with_admins(company_id=quiz.company_id)
 
         admins_ids = [admin.id for admin in comp.admins]
 
@@ -206,82 +208,99 @@ class QuizCrud:
                                     detail="you have no access")
 
         query = (
-            update(Variant)
-                .where(Variant.id == variant_id)
-                .values(
+            update(AnswerVariant)
+            .where(AnswerVariant.id == variant_id)
+            .values(
                 answer=variant_from_db.answer if answer is None else answer,
                 is_correct=variant_from_db.is_correct if is_correct is None else is_correct
             )
-                .execution_options(synchronize_session="fetch")
+            .execution_options(synchronize_session="fetch")
         )
         await self.db_session.execute(query)
-        await self.db_session.flush()
+        await self.db_session.commit()
 
-    async def pass_quiz(self, quiz_id: int, company_id: int, question_id: int, answer: str, current_user: User):
-        quiz = await self.get_quiz_by_id(quiz_id=quiz_id)
+    async def get_gpa_for_all_quizzes(self) -> dict:
+        quizzes = (await self.db_session.execute(select(Result))).scalars().all()
 
-        if quiz.id != company_id:
+        all_gpa = [quiz.gpa for quiz in quizzes]
+
+        return {"gpa for all quizzes": sum(all_gpa)/len(all_gpa)}
+
+    async def get_gpa_for_one_quiz(self, quiz_id: int) -> dict:
+        quizzes = (await self.db_session.execute(select(Result).filter(Result.quiz_id == quiz_id))).scalars().all()
+
+        all_gpa = [quiz.gpa for quiz in quizzes]
+
+        return {f"quiz with id {quiz_id} gpa": sum(all_gpa)/len(all_gpa)}
+
+    async def get_all_results(self) -> list:
+        quizzes = (await self.db_session.execute(select(Result))).scalars().all()
+
+        return quizzes
+
+    async def pass_quiz(self, quiz: TakeQuiz, current_user: User) -> dict:
+        quiz_from_db = (await self.db_session.execute(select(Quiz).filter(Quiz.id == quiz.quiz_id).options(selectinload(Quiz.questions)))).scalars().first()
+
+        if quiz_from_db.company_id != quiz.company_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"there is no quiz with id {quiz_id} in company with id {company_id}")
+                                detail=f"there is no quiz with id {quiz_from_db.company_id} in company with id {quiz.company_id}")
+        if len(quiz_from_db.questions) < 2:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="you cannot pas the quiz which contains less than two questions")
 
-        await self.get_question_by_id(question_id=question_id)
+        res = {'all_answers': 0,
+               'correct_answers': 0}
 
-        answer = (await self.db_session.execute(select(Variant)
-                                                .filter(Variant.answer == answer,
-                                                        Variant.question_id == question_id))) \
-                                                .scalars().first()
+        for index, answer in enumerate(quiz.answers):
+
+            # storing data to redis for 48 hours
+            redis_client.set(name=f"{index+1}", value=answer, ex=60 * 60 * 24 * 2)
+
+            question = (await self.db_session.execute(select(Question).filter(Question.id == index + 1)
+                                                      .options(selectinload(Question.variants))))\
+                                                      .scalars().first()
+
+            if len(question.variants) < 2:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail="you cannot answer for question which contains less than two options")
+            answer_from_db = (await self.db_session.execute(select(AnswerVariant)
+                                                            .filter(AnswerVariant.question_id == index + 1,
+                                                                    AnswerVariant.answer == answer)))\
+                                                            .scalars().first()
+            if answer_from_db.is_correct:
+                res['all_answers'] += 1
+                res['correct_answers'] += 1
+            else:
+                res['all_answers'] += 1
 
         result = (await self.db_session.execute(select(Result)
                                                 .filter(Result.user_id == current_user.id,
-                                                        Result.quiz_id == quiz_id)))\
+                                                        Result.quiz_id == quiz.quiz_id))) \
                                                 .scalars().first()
 
         if result is None:
-            if answer.is_correct:
-                new_result = Result(
-                    user_id=current_user.id,
-                    quiz_id=quiz_id,
-                    correct_answers=1,
-                    all_answers=1,
-                    gpa=1
-                )
-            else:
-                new_result = Result(
-                    user_id=current_user.id,
-                    quiz_id=quiz_id,
-                    correct_answers=0,
-                    all_answers=1,
-                    gpa=0
-                )
+            new_result = Result(
+                user_id=current_user.id,
+                quiz_id=quiz.quiz_id,
+                all_answers=res['all_answers'],
+                correct_answers=res['correct_answers'],
+                gpa=res['correct_answers']/res['all_answers']
+            )
+            self.db_session.add(new_result)
+            await self.db_session.commit()
         else:
-            if answer.is_correct:
-                query = (
-                    update(Result)
-                    .where(Result.user_id == current_user.id,
-                           Result.quiz_id == quiz_id)
-                    .values(
-                        correct_answers=result.correct_answers + 1,
-                        all_answers=result.all_answers + 1,
-                        gpa=(result.correct_answers + 1)/(result.all_answers + 1)
-                    )
-                    .execution_options(synchronize_session="fetch")
+            query = (
+                update(Result)
+                .where(Result.user_id == current_user.id,
+                        Result.quiz_id == quiz.quiz_id)
+                .values(
+                    correct_answers=result.correct_answers + res['correct_answers'],
+                    all_answers=result.all_answers + res['all_answers'],
+                    gpa=(result.correct_answers + res['correct_answers'])/(result.all_answers + res['all_answers'])
                 )
-                await self.db_session.execute(query)
-                await self.db_session.flush()
-            else:
-                query = (
-                    update(Result)
-                        .where(Result.user_id == current_user.id,
-                               Result.quiz_id == quiz_id)
-                        .values(
-                        all_answers=result.all_answers + 1,
-                        gpa=result.correct_answers/(result.all_answers + 1)
-                    )
-                    .execution_options(synchronize_session="fetch")
-                )
-                await self.db_session.execute(query)
-                await self.db_session.flush()
+                .execution_options(synchronize_session="fetch")
+            )
+            await self.db_session.execute(query)
+            await self.db_session.commit()
 
-        return result
-
-
+        return res

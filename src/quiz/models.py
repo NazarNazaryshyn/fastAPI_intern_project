@@ -1,8 +1,10 @@
+import datetime as datetime
 from sqlalchemy.orm import relationship, backref
 
 from src.database import Base
-from sqlalchemy import Column, String, Integer, ForeignKey, Boolean, Float
+from sqlalchemy import Column, String, Integer, ForeignKey, Boolean, Float, Date
 
+import datetime
 
 class Quiz(Base):
     __tablename__ = 'quizzes'
@@ -21,10 +23,10 @@ class Question(Base):
     id = Column(Integer, primary_key=True, index=True, nullable=False)
     quiz_id = Column(Integer, ForeignKey('quizzes.id', ondelete='CASCADE'))
     question = Column(String, nullable=False)
-    variants = relationship("Variant", backref=backref("question", lazy="joined"))
+    variants = relationship("AnswerVariant", backref=backref("question", lazy="joined"))
 
     
-class Variant(Base):
+class AnswerVariant(Base):
     __tablename__ = "variants"
 
     id = Column(Integer, primary_key=True, index=True, nullable=False)
@@ -42,3 +44,4 @@ class Result(Base):
     correct_answers = Column(Integer)
     all_answers = Column(Integer)
     gpa = Column(Float)
+    datetime = Column(Date, default=datetime.datetime.now, nullable=False)

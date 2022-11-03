@@ -2,7 +2,7 @@ import datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy import select, update, delete
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from src.company.crud import CompanyCrud
 from src.company.models import Invite, Request

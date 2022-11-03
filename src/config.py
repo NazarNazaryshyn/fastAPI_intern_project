@@ -16,6 +16,9 @@ class Settings:
     HTTP_PASSWORD: str = os.getenv("HTTP_PASSWORD")
     HTTP_USER: str = os.getenv("HTTP_USER")
 
+    REDIS_HOST: str = os.getenv("REDIS_HOST")
+    REDIS_PORT: str = os.getenv("REDIS_PORT")
+
     DOMAIN: str = os.getenv("DOMAIN")
     API_AUDIENCE: str = os.getenv("API_AUDIENCE")
     ALGORITHMS: str = os.getenv("ALGORITHMS")
