@@ -32,10 +32,11 @@ async def create_question(quiz_id: int, question: str,
                           session=Depends(get_session)) -> QuestionSchema:
     quiz_crud = QuizCrud(db_session=session)
 
-    question = await quiz_crud.create_question(quiz_id=quiz_id,
-                                               question=question)
+    await quiz_crud.create_question(quiz_id=quiz_id,
+                                    question=question)
 
-    return QuestionSchema(question=question)
+    return QuestionSchema(question=question,
+                          quiz_id=quiz_id)
 
 
 @quiz_router.post("/create_variant", response_model=VariantSchema)

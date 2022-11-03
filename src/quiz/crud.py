@@ -239,6 +239,9 @@ class QuizCrud:
         return quizzes
 
     async def pass_quiz(self, quiz: TakeQuiz, current_user: User) -> dict:
+        res = {'all_answers': 0,
+               'correct_answers': 0}
+
         quiz_from_db = (await self.db_session.execute(select(Quiz).filter(Quiz.id == quiz.quiz_id).options(selectinload(Quiz.questions)))).scalars().first()
 
         if quiz_from_db.company_id != quiz.company_id:
@@ -248,26 +251,16 @@ class QuizCrud:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="you cannot pas the quiz which contains less than two questions")
 
-        res = {'all_answers': 0,
-               'correct_answers': 0}
+        for index, question in enumerate(quiz_from_db.questions):
+            question_from_db = (await self.db_session.execute(select(Question).filter(Question.id == question.id).options(selectinload(Question.variants)))).scalars().first()
 
-        for index, answer in enumerate(quiz.answers):
-
-            # storing data to redis for 48 hours
-            redis_client.set(name=f"{index+1}", value=answer, ex=60 * 60 * 24 * 2)
-
-            question = (await self.db_session.execute(select(Question).filter(Question.id == index + 1)
-                                                      .options(selectinload(Question.variants))))\
-                                                      .scalars().first()
-
-            if len(question.variants) < 2:
+            if len(question_from_db.variants) < 2:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                     detail="you cannot answer for question which contains less than two options")
-            answer_from_db = (await self.db_session.execute(select(AnswerVariant)
-                                                            .filter(AnswerVariant.question_id == index + 1,
-                                                                    AnswerVariant.answer == answer)))\
-                                                            .scalars().first()
-            if answer_from_db.is_correct:
+
+            correct_answer = (await self.db_session.execute(select(AnswerVariant).filter(AnswerVariant.question_id == question.id, AnswerVariant.is_correct == True))).scalars().first()
+
+            if correct_answer.answer == quiz.answers[index]:
                 res['all_answers'] += 1
                 res['correct_answers'] += 1
             else:

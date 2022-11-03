@@ -13,6 +13,7 @@ class QuizSchema(BaseModel):
 
 class QuestionSchema(BaseModel):
     question: str
+    quiz_id: int
 
     class Config:
         orm_mode = True
