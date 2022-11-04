@@ -47,6 +47,28 @@ class TakeQuiz(BaseModel):
         orm_mode = True
 
 
+class GpaScheme(BaseModel):
+    gpa: float
+
+    class Config:
+        orm_mode = True
 
 
+class QuizResScheme(BaseModel):
+    all_answers: int
+    correct_answers: int
 
+    class Config:
+        orm_mode = True
+
+
+class QuizResults(BaseModel):
+    id: int
+    user_id: int
+    quiz_id: int
+    correct_answers: int
+    all_answers: int
+    gpa: float
+
+    class Config:
+        orm_mode = True

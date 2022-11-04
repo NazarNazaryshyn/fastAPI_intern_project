@@ -1,8 +1,11 @@
+from typing import List
+
 from fastapi import APIRouter, Depends
 
 from src.auth.services import get_current_user
 from src.quiz.crud import QuizCrud
-from src.quiz.schemes import QuizSchema, VariantSchema, QuestionSchema, TakeQuiz
+from src.quiz.models import Quiz
+from src.quiz.schemes import QuizSchema, VariantSchema, QuestionSchema, TakeQuiz, GpaScheme, QuizResScheme, QuizResults
 
 from src.company.router import get_session
 
@@ -108,35 +111,51 @@ async def update_variant(variant_id: int, answer: str, is_correct: bool,
 
 @quiz_router.put("/pass_quiz/{quiz_id}")
 async def pass_quiz(quiz: TakeQuiz, current_user = Depends(get_current_user),
-                    session = Depends(get_session)) -> dict:
+                    session = Depends(get_session)) -> QuizResScheme:
 
     quiz_crud = QuizCrud(db_session=session)
 
-    return await quiz_crud.pass_quiz(quiz=quiz, current_user=current_user)
+    res = await quiz_crud.pass_quiz(quiz=quiz, current_user=current_user)
+
+    return QuizResScheme(all_answers=res['all_answers'],
+                         correct_answers=res['correct_answers'])
 
 
-@quiz_router.get("get_all_results")
+@quiz_router.get("get_all_results", response_model=List[QuizResults])
 async def get_all_results(current_user = Depends(get_current_user),
-                          session = Depends(get_session)) -> list:
+                          session = Depends(get_session)) -> List[QuizResults]:
 
     quiz_crud = QuizCrud(db_session=session)
 
-    return await quiz_crud.get_all_results()
+    res_from_db = await quiz_crud.get_all_results()
+
+    res = [QuizResults(id=r.id,
+                       user_id=r.user_id,
+                       quiz_id=r.quiz_id,
+                       correct_answers=r.correct_answers,
+                       all_answers=r.all_answers,
+                       gpa=r.gpa) for r in res_from_db]
+
+    return res
 
 
-@quiz_router.get("get_gpa_for_one_quiz/{quiz_id}")
+@quiz_router.get("get_gpa_for_one_quiz/{quiz_id}", response_model=GpaScheme)
 async def get_gpa_for_one_quiz(quiz_id: int, current_user = Depends(get_current_user),
-                               session = Depends(get_session)) -> dict:
+                               session = Depends(get_session)) -> GpaScheme:
 
     quiz_crud = QuizCrud(db_session=session)
 
-    return await quiz_crud.get_gpa_for_one_quiz(quiz_id=quiz_id)
+    gpa = await quiz_crud.get_gpa_for_one_quiz(quiz_id=quiz_id)
+
+    return GpaScheme(gpa=gpa['gpa'])
 
 
-@quiz_router.get("get_gpa_for_all_quizzes")
+@quiz_router.get("get_gpa_for_all_quizzes", response_model=GpaScheme)
 async def get_gpa_for_all_quizzes(current_user = Depends(get_current_user),
-                                   session = Depends(get_session)) -> dict:
+                                  session = Depends(get_session)) -> GpaScheme:
 
     quiz_crud = QuizCrud(db_session=session)
 
-    return await quiz_crud.get_gpa_for_all_quizzes()
+    gpa = await quiz_crud.get_gpa_for_all_quizzes()
+
+    return GpaScheme(gpa=gpa['gpa'])

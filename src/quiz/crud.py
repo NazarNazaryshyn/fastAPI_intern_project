@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, selectinload
 from src.quiz.models import Quiz, Question, AnswerVariant, Result
 from src.user.models import User
 
-from src.quiz.schemes import QuizWithQuestion, TakeQuiz
+from src.quiz.schemes import TakeQuiz, GpaScheme
 
 from typing import List, Optional
 
@@ -17,17 +17,17 @@ class QuizCrud:
         self.db_session = db_session
 
     async def create_quiz(self, company_id: int, title: str, description: str, frequency: int, current_user: User) -> Quiz:
-        from src.company.crud import CompanyCrud
-        company_crud_method = CompanyCrud(db_session=self.db_session)
+        from src.user.crud import UserCrud
 
-        company = await company_crud_method.get_company_with_admins(company_id=company_id)
+        user_crud = UserCrud(db_session=self.db_session)
 
-        admins_id = [admin.id for admin in company.admins]
+        user_admin_in = await user_crud.user_admin_in(user_id=current_user.id)
+        user_owner_of = await user_crud.user_owner_of(user_id=current_user.id)
 
-        if company.owner_id != current_user.id:
-            if current_user.id not in admins_id:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                    detail="you have no access to create quiz")
+        admin_in = [company.id for company in user_admin_in.companies_admins]
+        owner_of = [company.id for company in user_owner_of.companies]
+
+        await user_crud.check_for_rights(company_id=company_id, admin_in=admin_in, owner_of=owner_of)
 
         new_quiz = Quiz(
             company_id=company_id,
@@ -41,7 +41,7 @@ class QuizCrud:
 
         return new_quiz
 
-    async def get_quiz_by_id(self, quiz_id: int) -> Quiz or None:
+    async def get_quiz_by_id(self, quiz_id: int) -> Optional[Quiz]:
         quiz = (await self.db_session.execute(select(Quiz)
                                               .filter(Quiz.id == quiz_id).options(selectinload(Quiz.questions)))) \
             .scalars().first()
@@ -73,7 +73,7 @@ class QuizCrud:
 
         return new_question
 
-    async def get_question_by_id(self, question_id: int) -> Question or None:
+    async def get_question_by_id(self, question_id: int) -> Optional[Question]:
         question = (await self.db_session.execute(select(Question)
                                                   .filter(Question.id == question_id)
                                                   .options(selectinload(Question.variants)))) \
@@ -99,20 +99,22 @@ class QuizCrud:
 
     async def delete_quiz(self, quiz_id: int, current_user: User) -> None:
         from src.company.crud import CompanyCrud
+        from src.user.crud import UserCrud
 
         quiz = await self.get_quiz_by_id(quiz_id=quiz_id)
 
         company_crud_method = CompanyCrud(db_session=self.db_session)
+        user_crud = UserCrud(db_session=self.db_session)
 
-        company = await company_crud_method.get_company_by_id(company_id=quiz.company_id)
-        comp = await company_crud_method.get_company_with_admins(company_id=quiz.company_id)
+        await company_crud_method.get_company_by_id(company_id=quiz.company_id)
 
-        admins_ids = [admin.id for admin in comp.admins]
+        user_admin_in = await user_crud.user_admin_in(user_id=current_user.id)
+        user_owner_of = await user_crud.user_owner_of(user_id=current_user.id)
 
-        if current_user.id != company.owner_id:
-            if current_user.id not in admins_ids:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                    detail="you have no access")
+        admin_in = [company.id for company in user_admin_in.companies_admins]
+        owner_of = [company.id for company in user_owner_of.companies]
+
+        await user_crud.check_for_rights(company_id=quiz.company_id, admin_in=admin_in, owner_of=owner_of)
 
         await self.db_session.execute(delete(Quiz).filter(Quiz.id == quiz_id))
         await self.db_session.commit()
@@ -219,24 +221,24 @@ class QuizCrud:
         await self.db_session.execute(query)
         await self.db_session.commit()
 
-    async def get_gpa_for_all_quizzes(self) -> dict:
+    async def get_gpa_for_all_quizzes(self) -> dict[str]:
         quizzes = (await self.db_session.execute(select(Result))).scalars().all()
 
         all_gpa = [quiz.gpa for quiz in quizzes]
 
-        return {"gpa for all quizzes": sum(all_gpa)/len(all_gpa)}
+        return {"gpa": sum(all_gpa)/len(all_gpa)}
 
-    async def get_gpa_for_one_quiz(self, quiz_id: int) -> dict:
+    async def get_gpa_for_one_quiz(self, quiz_id: int) -> dict[str]:
         quizzes = (await self.db_session.execute(select(Result).filter(Result.quiz_id == quiz_id))).scalars().all()
 
         all_gpa = [quiz.gpa for quiz in quizzes]
 
-        return {f"quiz with id {quiz_id} gpa": sum(all_gpa)/len(all_gpa)}
+        return {f"gpa": sum(all_gpa)/len(all_gpa)}
 
-    async def get_all_results(self) -> list:
-        quizzes = (await self.db_session.execute(select(Result))).scalars().all()
+    async def get_all_results(self) -> List[Result]:
+        res = (await self.db_session.execute(select(Result))).scalars().all()
 
-        return quizzes
+        return res
 
     async def pass_quiz(self, quiz: TakeQuiz, current_user: User) -> dict:
         res = {'all_answers': 0,
