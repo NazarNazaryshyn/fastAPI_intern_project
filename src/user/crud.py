@@ -2,7 +2,7 @@ import datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy import select, update, delete
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from src.company.crud import CompanyCrud
 from src.company.models import Invite, Request
@@ -12,8 +12,7 @@ from src.user.schemas import UserCreateSchema, UserUpdateSchema
 
 from src.auth.auth import auth_handler
 
-from typing import List
-
+from typing import List, Optional
 
 db = async_session()
 
@@ -22,6 +21,22 @@ class UserCrud:
 
     def __init__(self, db_session: Session):
         self.db_session = db_session
+
+    async def user_admin_in(self, user_id) -> User:
+        user = (await self.db_session.execute(select(User).filter(User.id == user_id).options(selectinload(User.companies_admins)))).scalars().first()
+
+        return user
+
+    async def user_owner_of(self, user_id) -> User:
+        user = (await self.db_session.execute(select(User).filter(User.id == user_id).options(selectinload(User.companies)))).scalars().first()
+
+        return user
+
+    async def check_for_rights(self, company_id: int, admin_in: list, owner_of: list) -> None:
+        if company_id not in admin_in:
+            if company_id not in owner_of:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                    detail="you have no access to create quiz")
 
     async def check_for_permission(self, id_1: int, id_2: int) -> None:
         if id_1 != id_2:
@@ -33,7 +48,7 @@ class UserCrud:
 
         return users
 
-    async def get_user_by_id(self, user_id: int) -> User or None:
+    async def get_user_by_id(self, user_id: int) -> Optional[User]:
         user = (await self.db_session.execute(select(User)
                                               .filter(User.id == user_id)))\
                                               .scalars().first()
@@ -120,7 +135,7 @@ class UserCrud:
 
         return new_user
 
-    async def get_invite(self, company_id: int, current_user: User) -> Invite or None:
+    async def get_invite(self, company_id: int, current_user: User) -> Optional[Invite]:
         invite = (await self.db_session.execute(select(Invite)
                                                 .filter(Invite.user_id == current_user.id,
                                                         Invite.company_id == company_id))) \

@@ -66,7 +66,7 @@ class CompanyCrud:
 
         return company
 
-    async def get_company_admins(self, company_id: int) -> Optional[Company]:
+    async def get_company_with_admins(self, company_id: int) -> Optional[Company]:
         company = (await self.db_session.execute(select(Company)
                                                  .filter(Company.id == company_id)
                                                  .options(selectinload(Company.admins))))\
@@ -224,7 +224,7 @@ class CompanyCrud:
 
         user = await user_crud.get_user_by_id(user_id=user_id)
 
-        company = await self.get_company_admins(company_id=company_id)
+        company = await self.get_company_with_admins(company_id=company_id)
         company_employees = await self.get_company_by_id(company_id=company_id)
 
         await self.user_is_owner(user_id=current_user.id,
@@ -246,7 +246,7 @@ class CompanyCrud:
 
         employee = await user_crud.get_user_by_id(user_id=employee_id)
         company = await self.get_company_by_id(company_id=company_id)
-        company_admins = await self.get_company_admins(company_id=company_id)
+        company_admins = await self.get_company_with_admins(company_id=company_id)
 
         await self.if_employee_exists(employee=employee, employee_id=employee_id)
 

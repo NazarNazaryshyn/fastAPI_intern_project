@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends
-from sqlmodel import Session
 
 from src.auth.services import get_current_user
 from src.company.schemes import CompanyScheme, InviteScheme
@@ -7,6 +6,8 @@ from src.database import async_session
 from src.company.crud import CompanyCrud
 from typing import List
 from src.user.crud import UserCrud
+
+from src.quiz.schemes import QuizSchema
 
 comp_router = APIRouter()
 
@@ -169,5 +170,9 @@ async def get_quizzes_for_company(company_id: int, current_user=Depends(get_curr
     quiz_crud_method = QuizCrud(db_session=session)
 
     quizzes = await quiz_crud_method.get_quizzes_for_company(company_id=company_id)
+
+    quizzes = [QuizSchema(title=quiz.title,
+                          description=quiz.description,
+                          frequency=quiz.frequency) for quiz in quizzes]
 
     return quizzes
