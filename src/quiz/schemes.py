@@ -72,3 +72,46 @@ class QuizResults(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class ResultsWithDate(BaseModel):
+    user_id: str
+    gpa: float
+    date: str
+
+    class Config:
+        orm_mode = True
+
+
+class QuizResForUser(BaseModel):
+    user_id: str
+    gpa: float
+    date: str
+
+    class Config:
+        orm_mode = True
+
+
+class EmployeeWithDate(BaseModel):
+    user_id: int
+    date: str
+
+    class Config:
+        orm_mode = True
+
+
+class QuizGpa(BaseModel):
+    quiz_id: int
+    gpa: float
+    time: str
+
+    class Config:
+        orm_mode = True
+
+
+class QuizWithDate(BaseModel):
+    quiz_id: int
+    time: str
+
+    class Config:
+        orm_mode = True

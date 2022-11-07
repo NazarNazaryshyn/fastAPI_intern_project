@@ -27,6 +27,17 @@ class CompanyCrud:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f"there is no user with id {employee_id}")
 
+    async def get_company_with_employees(self, company_id: int):
+        company = (await self.db_session.execute(select(Company).filter(Company.id == company_id)
+                                                 .options(selectinload(Company.employees))))\
+                                                 .scalars().first()
+
+        if company is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"there is no company with id {company_id}")
+
+        return company
+
     async def check_if_employee_in_company(self, employee: User, employees: list, employee_id: int, company_id: int) -> None:
         if employee not in employees:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

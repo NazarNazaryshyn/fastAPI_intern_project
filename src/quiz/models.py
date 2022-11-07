@@ -6,6 +6,7 @@ from sqlalchemy import Column, String, Integer, ForeignKey, Boolean, Float, Date
 
 import datetime
 
+
 class Quiz(Base):
     __tablename__ = 'quizzes'
 
