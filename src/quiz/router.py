@@ -4,10 +4,16 @@ from fastapi import APIRouter, Depends
 
 from src.auth.services import get_current_user
 from src.quiz.crud import QuizCrud
-from src.quiz.models import Quiz
-from src.quiz.schemes import QuizSchema, VariantSchema, QuestionSchema, TakeQuiz, GpaScheme, QuizResScheme, QuizResults
+
+from src.quiz.schemes import QuizSchema, VariantSchema, QuestionSchema, TakeQuiz, GpaScheme, \
+                             QuizResScheme, QuizResults, ResultsWithDate, QuizResForUser, EmployeeWithDate, \
+                             QuizGpa, QuizWithDate
 
 from src.company.router import get_session
+from src.redis_init import redis_client
+from src.quiz.services import write_to_csv
+
+from fastapi.responses import FileResponse
 
 quiz_router = APIRouter()
 
@@ -109,7 +115,7 @@ async def update_variant(variant_id: int, answer: str, is_correct: bool,
                          is_correct=is_correct)
 
 
-@quiz_router.put("/pass_quiz/{quiz_id}")
+@quiz_router.put("/pass_quiz/{quiz_id}", response_model=QuizResScheme)
 async def pass_quiz(quiz: TakeQuiz, current_user = Depends(get_current_user),
                     session = Depends(get_session)) -> QuizResScheme:
 
@@ -159,3 +165,102 @@ async def get_gpa_for_all_quizzes(current_user = Depends(get_current_user),
     gpa = await quiz_crud.get_gpa_for_all_quizzes()
 
     return GpaScheme(gpa=gpa['gpa'])
+
+
+@quiz_router.get("get_redis")
+async def get_redis(user_id: int, quiz_id: int, question_id: int) -> dict:
+    res = redis_client.get(name=f"quiz-u{user_id}-quiz{quiz_id}-question{question_id}")
+
+    return res
+
+
+@quiz_router.get("get_redis_results/{quiz_id}")
+async def get_redis_results(quiz_id: int, filename: str,
+                            current_user = Depends(get_current_user), session = Depends(get_session)) -> FileResponse:
+    quiz_crud = QuizCrud(db_session=session)
+
+    res = await quiz_crud.get_redis_results(quiz_id=quiz_id, current_user=current_user)
+
+    write_to_csv(filename=filename, data=res)
+
+    return FileResponse(f"{filename}.csv")
+
+
+@quiz_router.get("export_employee_result/{employee_id}")
+async def export_employee_result(employee_id: int, company_id: int, quiz_id: int, filename: str,
+                                 current_user = Depends(get_current_user), session = Depends(get_session)) -> FileResponse:
+    quiz_crud = QuizCrud(db_session=session)
+
+    res = await quiz_crud.export_employee_results(quiz_id=quiz_id, employee_id=employee_id,
+                                                  company_id=company_id, current_user=current_user)
+
+    write_to_csv(filename=filename, data=res)
+
+    return FileResponse(f"{filename}.csv")
+
+
+@quiz_router.get("get_employee_id_with_time/{quiz_id}", response_model=List[EmployeeWithDate])
+async def get_employee_id_with_time(quiz_id: int, company_id: int,
+                          current_user = Depends(get_current_user), session = Depends(get_session)) -> List[EmployeeWithDate]:
+
+    quiz_crud = QuizCrud(db_session=session)
+
+    results = await quiz_crud.get_employee_id_with_time(company_id=company_id, quiz_id=quiz_id, current_user=current_user)
+
+    res = [EmployeeWithDate(user_id=item["user_id"],
+                            date=str(item["time"])) for item in results]
+
+    return res
+
+
+@quiz_router.get("get_all_users_results_with_time", response_model=List[ResultsWithDate])
+async def get_all_user_results_with_time(current_user = Depends(get_current_user),
+                                         session = Depends(get_session)) -> List[ResultsWithDate]:
+
+    quiz_crud = QuizCrud(db_session=session)
+
+    results = await quiz_crud.get_gpa_of_all_users_with_time()
+
+    res = [ResultsWithDate(user_id=item,
+                           gpa=results[item]["gpa"],
+                           date=str(results[item]["date"])) for item in results.keys()]
+
+    return res
+
+
+@quiz_router.get("get_user_results_with_time/{user_id}", response_model=List[QuizResForUser])
+async def get_user_results_with_time(user_id: int, session = Depends(get_session)) -> List[QuizResForUser]:
+    quiz_crud = QuizCrud(db_session=session)
+
+    results = await quiz_crud.get_user_results(user_id=user_id)
+
+    res = [QuizResForUser(user_id=item.user_id,
+                          gpa=item.gpa,
+                          date=str(item.datetime)) for item in results]
+
+    return res
+
+
+@quiz_router.get("get_gpa_for_each_quiz", response_model=List[QuizGpa])
+async def get_gpa_for_each_quiz(session = Depends(get_session)) -> List[QuizGpa]:
+    quiz_crud = QuizCrud(db_session=session)
+
+    results = await quiz_crud.get_gpa_for_each_quiz()
+
+    res = [QuizGpa(quiz_id=item,
+                   gpa=results[item]["gpa"]/results[item]["times"],
+                   time=results[item]["time"]) for item in results.keys()]
+
+    return res
+
+
+@quiz_router.get("get_all_quizzes_with_time", response_model=List[QuizWithDate])
+async def get_all_quizzes_with_time(session = Depends(get_session)) -> List[QuizWithDate]:
+    quiz_crud = QuizCrud(db_session=session)
+
+    results = await quiz_crud.get_all_quizzes_with_time()
+
+    res = [QuizWithDate(quiz_id=item,
+                        time=results[item]["time"]) for item in results.keys()]
+
+    return res

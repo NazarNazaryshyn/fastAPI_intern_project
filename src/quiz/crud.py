@@ -256,15 +256,20 @@ class QuizCrud:
         for index, question in enumerate(quiz_from_db.questions):
             question_from_db = (await self.db_session.execute(select(Question).filter(Question.id == question.id).options(selectinload(Question.variants)))).scalars().first()
 
-            redis_client.set(name=question.id, value=quiz.answers[index], ex=60*60*24*2)
-
             if len(question_from_db.variants) < 2:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                     detail="you cannot answer for question which contains less than two options")
 
             correct_answer = (await self.db_session.execute(select(AnswerVariant).filter(AnswerVariant.question_id == question.id, AnswerVariant.is_correct == True))).scalars().first()
 
-            if correct_answer.answer == quiz.answers[index]:
+            is_correct = True if correct_answer.answer == quiz.answers[index] else False
+
+            redis_client.set(name=f'quiz-u{current_user.id}-quiz{quiz.quiz_id}-question{index + 1}',
+                             value=str({question_from_db.question: quiz.answers[index],
+                                        "is_correct": is_correct}),
+                             ex=60 * 60 * 24 * 2)
+
+            if is_correct:
                 res['all_answers'] += 1
                 res['correct_answers'] += 1
             else:
@@ -289,7 +294,7 @@ class QuizCrud:
             query = (
                 update(Result)
                 .where(Result.user_id == current_user.id,
-                        Result.quiz_id == quiz.quiz_id)
+                       Result.quiz_id == quiz.quiz_id)
                 .values(
                     correct_answers=result.correct_answers + res['correct_answers'],
                     all_answers=result.all_answers + res['all_answers'],
@@ -299,5 +304,141 @@ class QuizCrud:
             )
             await self.db_session.execute(query)
             await self.db_session.commit()
+
+        return res
+
+    async def get_quiz_with_questions(self, quiz_id: int):
+        quiz = (await self.db_session.execute(select(Quiz).filter(Quiz.id == quiz_id)
+                                              .options(selectinload(Quiz.questions))))\
+                                              .scalars().first()
+
+        if quiz is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"there is no quiz with id {quiz_id}")
+
+        return quiz
+
+    async def get_redis_results(self, quiz_id: int, current_user: User) -> list:
+        quiz = await self.get_quiz_with_questions(quiz_id=quiz_id)
+
+        res = []
+
+        for i in range(len(quiz.questions)):
+            res.append(redis_client.get(name=f"quiz-u{current_user.id}-quiz{quiz_id}-question{i + 1}"))
+
+        return res
+
+    async def export_employee_results(self, quiz_id: int, employee_id: int, company_id: int, current_user: User) -> list:
+        from src.company.crud import CompanyCrud
+        from src.user.crud import UserCrud
+
+        company_crud = CompanyCrud(db_session=self.db_session)
+        user_crud = UserCrud(db_session=self.db_session)
+
+        await company_crud.get_company_by_id(company_id=company_id)
+
+        user_admin_in = await user_crud.user_admin_in(user_id=current_user.id)
+        user_owner_of = await user_crud.user_owner_of(user_id=current_user.id)
+
+        admin_in = [company.id for company in user_admin_in.companies_admins]
+        owner_of = [company.id for company in user_owner_of.companies]
+
+        await user_crud.check_for_rights(company_id=company_id, admin_in=admin_in, owner_of=owner_of)
+
+        quiz = await self.get_quiz_with_questions(quiz_id=quiz_id)
+
+        res = []
+
+        for i in range(len(quiz.questions)):
+            res.append(redis_client.get(name=f"quiz-u{employee_id}-quiz{quiz_id}-question{i + 1}"))
+
+        return res
+
+    async def get_employee_id_with_time(self, company_id: int, quiz_id: int, current_user: User) -> list:
+        from src.company.crud import CompanyCrud
+        from src.user.crud import UserCrud
+
+        company_crud = CompanyCrud(db_session=self.db_session)
+        user_crud = UserCrud(db_session=self.db_session)
+
+        await company_crud.get_company_by_id(company_id=company_id)
+
+        user_admin_in = await user_crud.user_admin_in(user_id=current_user.id)
+        user_owner_of = await user_crud.user_owner_of(user_id=current_user.id)
+
+        admin_in = [company.id for company in user_admin_in.companies_admins]
+        owner_of = [company.id for company in user_owner_of.companies]
+
+        await user_crud.check_for_rights(company_id=company_id, admin_in=admin_in, owner_of=owner_of)
+
+        company_with_employees = await company_crud.get_company_with_employees(company_id=company_id)
+
+        res = []
+
+        for employee in company_with_employees.employees:
+            result = (await self.db_session.execute(select(Result)
+                                                    .filter(Result.user_id == employee.id,
+                                                            Result.quiz_id == quiz_id)))\
+                                                    .scalars().first()
+
+            res.append({"user_id": employee.id,
+                        "time": result.datetime})
+
+        return res
+
+    async def get_gpa_of_all_users_with_time(self) -> dict:
+        results = await self.get_all_results()
+
+        res = {}
+
+        for item in results:
+
+            if f"{item.user_id}" in res.keys():
+                res[f"{item.user_id}"] = {"gpa": (res[f"{item.user_id}"]["gpa"] + (item.correct_answers/item.all_answers))/2,
+                                          "date": item.datetime}
+
+            res[f"{item.user_id}"] = {"gpa": item.correct_answers/item.all_answers,
+                                      "date": item.datetime}
+
+        return res
+
+    async def get_user_results(self, user_id: int) -> list:
+        from src.user.crud import UserCrud
+
+        user_crud = UserCrud(db_session=self.db_session)
+        await user_crud.get_user_by_id(user_id=user_id)
+
+        results = (await self.db_session.execute(Result).filter(Result.user_id == user_id)).scalars().all()
+
+        return results
+
+    async def get_gpa_for_each_quiz(self) -> dict:
+        results = await self.get_all_results()
+
+        res = {}
+
+        for item in results:
+
+            if res[f"{item.quiz_id}"] in res.keys():
+                res[f"{item.quiz_id}"] = {"gpa": res[f"{item.quiz_id}"]["gpa"] + item.gpa,
+                                          "times": res[f"{item.quiz_id}"]["times"] + 1,
+                                          "time": item.datetime}
+
+            res[f"{item.quiz_id}"] = {"gpa": item.gpa,
+                                      "times": 1,
+                                      "time": item.datetime}
+
+        return res
+
+    async def get_all_quizzes_with_time(self) -> dict:
+        results = await self.get_all_results()
+
+        res = {}
+
+        for item in results:
+            if res[f"{item.quiz_id}"] in res.keys():
+                res[f"{item.quiz_id}"] = item.datetime
+
+            res[f"{item.quiz_id}"] = item.datetime
 
         return res
