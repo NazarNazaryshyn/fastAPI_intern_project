@@ -55,3 +55,4 @@ app.include_router(router, prefix='/user', tags=["user"])
 app.include_router(auth_router, prefix='/auth', tags=["auth"])
 app.include_router(comp_router, prefix='/company', tags=["company"])
 app.include_router(quiz_router, prefix='/quiz', tags=['quiz'])
+

@@ -90,7 +90,8 @@ class UserCrud:
     async def delete_user(self, user_id: int) -> None:
         db_user = await self.get_user_by_id(user_id=user_id)
         if db_user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="user with this id doesn't exist")
 
         await self.db_session.execute(delete(User).filter(User.id == user_id))
         await self.db_session.commit()
