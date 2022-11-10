@@ -6,12 +6,20 @@ load_dotenv()
 
 
 class Settings:
-    POSTGRES_USER: str = os.getenv("POSTGRES_USER")
-    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD")
-    POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER")
-    POSTGRES_PORT: str = os.getenv("POSTGRES_PORT")
-    POSTGRES_DB: str = os.getenv("POSTGRES_DB")
-    DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER}:{POSTGRES_PORT}/{POSTGRES_DB}"
+    if "RDS_DB_NAME" in os.environ:
+        POSTGRES_USER: str = os.environ["RDS_USERNAME"]
+        POSTGRES_PASSWORD: str = os.environ["RDS_PASSWORD"]
+        POSTGRES_SERVER: str = os.environ["RDS_HOSTNAME"]
+        POSTGRES_PORT: str = os.environ["RDS_PORT"]
+        POSTGRES_DB: str = os.environ["RDS_DB_NAME"]
+        DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER}:{POSTGRES_PORT}/{POSTGRES_DB}"
+    else:
+        POSTGRES_USER: str = os.getenv("POSTGRES_USER")
+        POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD")
+        POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER")
+        POSTGRES_PORT: str = os.getenv("POSTGRES_PORT")
+        POSTGRES_DB: str = os.getenv("POSTGRES_DB")
+        DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
     TEST_POSTGRES_USER: str = os.getenv("TEST_POSTGRES_USER")
     TEST_POSTGRES_PASSWORD: str = os.getenv("TEST_POSTGRES_PASSWORD")
