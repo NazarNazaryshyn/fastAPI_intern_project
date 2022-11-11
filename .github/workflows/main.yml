@@ -1,0 +1,38 @@
+name: CI-CD-Pipeline-to-AWS-ElasticBeanstalk
+env:
+  EB_PACKAGE_S3_BUCKET_NAME : "adv-it-fastapi-application-packages"
+  EB_APPLICATION_NAME: "myfastapi"
+  EB_ENVIRONMENT_NAME: "Myfastapi-ENV"
+  DEPLOY_PACKAGE_NAME: "fastapi_app${{ github.sha }}.zip"
+  AWS_REGION_NAME: "us-east-1"
+  
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    permissions:
+      id-token: write
+      contents: read
+      
+      
+    runs-on: ubuntu-20.04
+    
+    steps:
+    - name: Git clone our repo
+      uses: actions/checkout@v1
+    - name: Create ZIP deployment package
+      run : zip -r ${{ env.DEPLOY_PACKAGE_NAME }} ./ -x *.git*
+    
+    - name: Configure my AWS credits
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: AKIAZWUXR5BBGNV7VPFX
+        aws-secret-access-key: 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
+        aws-region: us-east-1
+    - name: Copy Deployment package to s3 bucket
+      run: aws s3 cp ${{ env.DEPLOY_PACKAGE_NAME }} s3://elasticbeanstalk-us-east-1-667111516226/
+    - name: Print happy message for CI finish
+      run: echo "CI finished succesfully"
