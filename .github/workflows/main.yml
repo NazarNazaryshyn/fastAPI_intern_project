@@ -43,8 +43,8 @@ jobs:
           aws-region: us-east-1
       - name: Create new ElasticBeanstalk application
         run: 
-          aws elasticbeanstalk create-application-version --application-name myfastapi --source-bundle S3Bucket="elasticbeanstalk-us-east-1-667111516226",S3Key="${{env.DEPLOY_PACKAGE_NAME}}"  --version-label "Sample" --description "CommitSHA-${{github.sha}}"
+          aws elasticbeanstalk create-application-version --application-name myfastapi --source-bundle S3Bucket="elasticbeanstalk-us-east-1-667111516226",S3Key="${{env.DEPLOY_PACKAGE_NAME}}"  --version-label "Ver-${{github.sha}}" --description "CommitSHA-${{github.sha}}"
       - name: Deploy new ElasticBeanstalk applicat
-        run: aws elasticbeanstalk update-environment --environment-name Myfastapi-env --version-label "Sample"
+        run: aws elasticbeanstalk update-environment --environment-name Myfastapi-env --version-label "Ver-${{github.sha}}"
       - name: Happy message for CD finish
         run: echo "CD pipeline finished!"
