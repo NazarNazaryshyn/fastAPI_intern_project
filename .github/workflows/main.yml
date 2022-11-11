@@ -47,7 +47,7 @@ jobs:
           aws-secret-access-key: Ai05AE7Z4RoAw9zoCNUGyRPF//26Xg7moeimVh26
           aws-region: us-east-1
       - name: Create new ElasticBeanstalk application
-        run: |
+        run: 
           aws elasticbeanstalk create-application-version \
           --application-name myfastapi \
           --source-bundle S3Bucket="adv-it-fastapi-application-packages", S3Key="fastapi_app${{ github.sha }}.zip" \
