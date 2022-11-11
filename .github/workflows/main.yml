@@ -47,4 +47,4 @@ jobs:
       - name: Deploy new ElasticBeanstalk applicat
         run: aws elasticbeanstalk update-environment --environment-name Myfastapi-env --version-label "Ver-${{github.sha}}"
       - name: Happy message for CD finish
-        run: echo "CD pipeline finished!"
+        run: echo "CD pipeline finished!!"
