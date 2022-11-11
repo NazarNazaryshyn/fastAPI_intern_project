@@ -3,7 +3,6 @@ import datetime
 from fastapi import HTTPException, status
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import Session, selectinload
-
 from src.company.crud import CompanyCrud
 from src.company.models import Invite, Request
 from src.database import async_session
@@ -179,3 +178,4 @@ class UserCrud:
         await self.db_session.flush()
 
         return new_request
+

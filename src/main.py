@@ -10,7 +10,7 @@ from src.quiz.router import quiz_router
 import databases
 import aioredis
 from fastapi.security import HTTPBearer
-
+from src.database import async_session
 
 app = FastAPI()
 token_auth_scheme = HTTPBearer()
