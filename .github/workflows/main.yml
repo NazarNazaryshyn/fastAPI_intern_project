@@ -40,20 +40,19 @@ jobs:
     runs-on: ubuntu-20.04
     needs: [my_ci_part]
     steps:
-    
       - name: Configure my AWS credits
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: AKIAZWUXR5BBGNV7VPFX
-        aws-secret-access-key: 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
-        aws-region: us-east-1
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: AKIAZWUXR5BBGNV7VPFX
+          aws-secret-access-key: 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
+          aws-region: us-east-1
       - name: Create new ElasticBeanstalk application
         run: |
-          aws elasticbeanstalk create-application-version \
-          --application-name myfastapi \
-          --source-bundle S3Bucket="adv-it-fastapi-application-packages", S3Key="fastapi_app${{ github.sha }}.zip" \
-          --version-label "Ver-${{github.sha}}" \
-          --description "CommitSHA-${{{github.sha}}"
+            aws elasticbeanstalk create-application-version \
+            --application-name myfastapi \
+            --source-bundle S3Bucket="adv-it-fastapi-application-packages", S3Key="fastapi_app${{ github.sha }}.zip" \
+            --version-label "Ver-${{github.sha}}" \
+            --description "CommitSHA-${{{github.sha}}"
       - name: Deploy new ElasticBeanstalk applicat
         run: aws elasticbeanstalk update-environment --environment-name ${{env.EB_ENVIRONMENT_NAME }} --version-label "Ver-${{github.sha}}"
       - name: Happy message for CD finish
